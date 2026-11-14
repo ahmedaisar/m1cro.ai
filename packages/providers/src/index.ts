@@ -22,267 +22,59 @@ type ChatChunk = {
       content?: string | null;
       tool_calls?: Array<{ index: number; id?: string; function?: { name?: string; arguments?: string } }>;
     };
-    finish_reason?: string | null;
-  }>;
-  error?: { message?: string };
-};
+©½¹Ì¹‰…Í•UÉ°¹É•Á±…” ½p¼¼°€ˆˆ¤€¬€ˆ½µ½‘•±Ìˆ°ì(€€€€€µ•Ñ¡½è€‰Pˆ°(€€€€€¡•…‘•ÉÌèì(€€€€€€€€¸¸¸¡Ñ¡¥Ì¹½ÁÑ¥½¹Ì¹…Á¥-•ä€üì…ÕÑ¡½É¥é…Ñ¥½¸è€‰	•…É•È€ˆ€¬Ñ¡¥Ì¹½ÁÑ¥½¹Ì¹…Á¥-•äô€èíô¤°(€€€€€€€€¸¸¹Ñ¡¥Ì¹½ÁÑ¥½¹Ì¹¡•…‘•ÉÌ°(€€€€€ô°(€€€ô¤ì(€€€¥˜€ …É•ÍÁ½¹Í”¹½¬¤ì(€€€€€½¹ÍĞ‘•Ñ…¥°€ô…İ…¥ĞÉ•ÍÁ½¹Í”¹Ñ•áĞ ¤¹…Ñ   ¤€ôø€ˆˆ¤ì(€€€€€Ñ¡É½Ü¹•ÜAÉ½Ù¥‘•É!ÑÑÁÉÉ½È¡É•ÍÁ½¹Í”¹ÍÑ…ÑÕÌ°‘•Ñ…¥°ñğÉ•ÍÁ½¹Í”¹ÍÑ…ÑÕÍQ•áĞ¤ì(€€€ô((€€€½¹ÍĞÁ…å±½…èÕ¹­¹½İ¸€ô…İ…¥ĞÉ•ÍÁ½¹Í”¹©Í½¸ ¤ì(€€€¥˜€ …Á…å±½…ñğÑåÁ•½˜Á…å±½…€„ôô€‰½‰©•Ğˆñğ€…ÉÉ…ä¹¥ÍÉÉ…ä ¡Á…å±½……Ìì‘…Ñ„üèÕ¹­¹½İ¸ô¤¹‘…Ñ„¤¤ì(€€€€€Ñ¡É½Ü¹•ÜÉÉ½È ‰AÉ½Ù¥‘•ÈÉ•ÑÕÉ¹•…¸¥¹Ù…±¥µ½‘•±ÌÉ•ÍÁ½¹Í”ˆ¤ì(€€€ô((€€€½¹ÍĞÁÉ½Ù¥‘•È€ôÑ¡¥Ì¹½ÁÑ¥½¹Ì¹ÁÉ½Ù¥‘•É%€üüÑ¡¥Ì¹¥ì(€€€É•ÑÕÉ¸€¡Á…å±½……Ìì‘…Ñ„èÉÉ…äñI•½ÉñÍÑÉ¥¹œ°Õ¹­¹½İ¸øøô¤¹‘…Ñ„¹™±…Ñ5…À ¡¥Ñ•´¤è¥Í½Ù•É•‘5½‘•±I•½É‘mt€ôøì(€€€€€¥˜€¡ÑåÁ•½˜¥Ñ•´¹¥€„ôô€‰ÍÑÉ¥¹œˆñğ€…¥Ñ•´¹¥¹ÑÉ¥´ ¤¤É•ÑÕÉ¸mtì(€€€€€½¹ÍĞÉ•½Éè¥Í½Ù•É•‘5½‘•±I•½É€ôìÁÉ½Ù¥‘•È°¥è¥Ñ•´¹¥°…Á…‰¥±¥Ñ¥•Ìèíôôì(€€€€€¥˜€¡ÑåÁ•½˜¥Ñ•´¹¹…µ”€ôôô€‰ÍÑÉ¥¹œˆ€˜˜¥Ñ•´¹¹…µ”¹ÑÉ¥´ ¤¤É•½É¹‘¥ÍÁ±…å9…µ”€ô¥Ñ•´¹¹…µ”ì(€€€€€½¹ÍĞ½¹Ñ•áĞ€ô¥Ñ•´¹½¹Ñ•áÑ}±•¹Ñ ì(€€€€€¥˜€¡ÑåÁ•½˜½¹Ñ–¢FööÇ3¢&WVW7BçFööÇ2æÖ‚‡FööÂ’Óâ‡°¢G—S¢&gVæ7F–öâ"À¢gVæ7F–öã¢°¢æÖS¢FööÂææÖRÀ¢FW67&—F–öã¢FööÂæFW67&—F–öâÀ¢&ÖWFW'3¢FööÂæ–çWE66†VÖÀ¢ÒÀ¢Ò’’À¢Ò’À¢Ò“° ¢–b‡&W7öç6Ræö²’'&V³°¢6öç7B&WG'–&ÆRÒ³C‚ÂC’ÂC#RÂC#’ÂSÂS"ÂS2ÂSEÒæ–æ6ÇVFW2‡&W7öç6Rç7FGW2“°¢6öç7BFWF–ÂÒv—B&W7öç6RçFW‡B‚’æ6F6‚‚‚’Óâ""“°¢–b‚&WG'–&ÆRÇÂGFV×BÓÓÒÖ…&WG&–W2’F‡&÷ræWr&÷f–FW$‡GGW'&÷"‡&W7öç6Rç7FGW2ÂFWF–Â“° ¢6öç7B&WG'”gFW"Ò&W7öç6Ræ†VFW'2ævWB‚'&WG'’ÖgFW""“°¢6öç7B&WG'”×2Ò&WG'”gFW"bbõåÆB²…ÂåÆB²“òBòçFW7B‡&WG'”gFW"¢òÖF‚æÖ–â†Ö„FVÆ’ÂçVÖ&W"‡&WG'”gFW"’¢¢¢ÖF‚æÖ–â†Ö„FVÆ’Â&6TFVÆ’¢"¢¢GFV×B“°¢v—BFVÆ’‡&WG'”×2Â&WVW7Bç6–væÂ“°¢Ò6F6‚†W'&÷"’°¢–b‡&WVW7Bç6–væÂæ&÷'FVB’F‡&÷r&WVW7Bç6–væÂç&V6öâóòW'&÷#°¢–b†W'&÷"–ç7Fæ6Vöb&÷f–FW$‡GGW'&÷"’F‡&÷rW'&÷#°¢–b†GFV×BÓÓÒÖ…&WG&–W2’F‡&÷rW'&÷#°¢v—BFVÆ’„ÖF‚æÖ–â†Ö„FVÆšÙˆ[OËÛÛØØ[ÈÏÈ×JHÂˆÛÛœİİ\œ™[H[™[™Ë™Ù]
+\š[™^
+HÏÈÈYˆˆ‹˜[YNˆˆ‹\™İ[Y[ÎˆˆˆNÂˆYˆ
+\šY
+Hİ\œ™[šYH\šYÂˆYˆ
+\™[˜İ[ÛË›˜[YJHİ\œ™[›˜[YH
+ÏH\™[˜İ[Û‹›˜[YNÂˆYˆ
+\™[˜İ[ÛË˜\™İ[Y[ÊHİ\œ™[˜\™İ[Y[È
+ÏH\™[˜İ[Û‹˜\™İ[Y[ÎÂˆ[™[™ËœÙ]
+\š[™^İ\œ™[
+NÂˆBˆYˆ
+ÚÚXÙOË™š[š\ÚÜ™X\ÛÛŠHÂˆØ]Ñš[š\Ú™X\ÛÛˆHYNÂˆZY[
+ˆ[Z]ÛÛÊ
+NÂˆBˆNÂ‚ˆ]X›Ü\İ[™\ˆ
 
-export class ProviderHttpError extends Error {
-  constructor(readonly status: number, detail: string) {
-    super("Provider request failed (" + status + "): " + detail.slice(0, 500));
-    this.name = "ProviderHttpError";
-  }
-}
 
-function toOpenAIMessages(messages: ModelMessage[]): OpenAIMessage[] {
-  const result: OpenAIMessage[] = [];
-  for (const message of messages) {
-    if (message.role === "tool") {
-      if (!message.toolCallId) throw new Error("Tool messages require a toolCallId");
-      result.push({
-        role: "tool",
-        content: message.content,
-        tool_call_id: message.toolCallId,
-        ...(message.name ? { name: message.name } : {}),
-      });
-    } else if (message.role === "assistant" && message.toolCalls?.length) {
-      result.push({
-        role: "assistant",
-        content: message.content || null,
-        tool_calls: message.toolCalls.map((call) => ({
-          id: call.id,
-          type: "function",
-          function: { name: call.name, arguments: JSON.stringify(call.input) },
-        })),
-      });
-    } else {
-      result.push({ role: message.role, content: message.content });
-    }
-  }
-  return result;
-}
+HOˆ›ÚY
+H[™Yš[™YÂˆHÂˆÛÛœİÛX›ÜH
 
-export class OpenAICompatibleProvider implements ModelProvider {
-  readonly id = "openai-compatible";
+HOˆÂˆ›ÚY™XY\‹˜Ø[˜Ù[
+™\]Y\İœÚYÛ˜[œ™X\ÛÛŠK˜Ø]Ú
 
-  constructor(private readonly options: {
-    baseUrl: string;
-    providerId?: string;
-    apiKey?: string;
-    headers?: Record<string, string>;
-    fetcher?: typeof fetch;
-    maxRetries?: number;
-    retryBaseDelayMs?: number;
-    maxRetryDelayMs?: number;
-  }) {}
 
-  /** Discover models from an OpenAI-compatible /models endpoint. Unknown capabilities stay unknown. */
-  async discoverModels(): Promise<DiscoveredModelRecord[]> {
+HOˆ[™Yš[™Y
+NÂˆNÂˆX›Ü\İ[™\ˆHÛX›ÜÂˆ™\]Y\İœÚYÛ˜[˜Y]™[\İ[™\Š˜X›Ü‹ÛX›ÜÈÛ˜ÙNˆYHJNÂ‚ˆÚ[H
+YJHÂˆ™\]Y\İœÚYÛ˜[›İÒYX›ÜY
+
+NÂˆÛÛœİÈ˜[YKÛ™HHH]ØZ]™XY\‹œ™XY
+
+NÂˆ™\]Y\İœÚYÛ˜[›İÒYX›ÜY
+
+NÂˆYˆ
+Û™JHœ™XZÎÂ‚ˆY™™\ˆ
+ÏHXÛÙ\‹™XÛÙJ˜[YKÈİ™X[NˆYHJNÂˆÛÛœİ[™\ÈHY™™\‹œÜ]
+××‹ÊNÂˆY™™\ˆH[™\ËœÜ
+
+HÏÈˆÂˆ›Üˆ
+ÛÛœİ[™HÙˆ[™\ÊHZY[
+ˆ\œÙS[ª: AsyncIterable<ModelEvent> {
     const fetcher = this.options.fetcher ?? fetch;
-    const response = await fetcher(this.options.baseUrl.replace(/\/$/, "") + "/models", {
-      method: "GET",
-      headers: {
-        ...(this.options.apiKey ? { authorization: "Bearer " + this.options.apiKey } : {}),
-        ...this.options.headers,
-      },
+    const system = request.messages.filter((message) => message.role === "system").map((message) => message.content).join("\n\n");
+    const messages = request.messages.filter((message) => message.role !== "system").map((message) => {
+      if (message.role === "tool") {
+        if (!message.toolCallId) throw new Error("Tool messages require a toolCallId");
+        return { role: "user", content: [{ type: "tool_result", tool_use_id: message.toolCallId, content: message.content }] };
+      }
+      if (message.role === "assistant" && message.toolCalls?.length) {
+        return { role: "assistant", content: [
+          ...(message.content ? [{ type: "text", text: message.content }] : []),
+          ...message.toolCalls.map((call) => ({ type: "tool_use", id: call.id, name: call.name, input: call.input })),
+        ] };
+      }
+      return { role: message.role, content: message.content };
     });
-    if (!response.ok) {
-      const detail = await response.text().catch(() => "");
-      throw new ProviderHttpError(response.status, detail || response.statusText);
-    }
-
-    const payload: unknown = await response.json();
-    if (!payload || typeof payload !== "object" || !Array.isArray((payload as { data?: unknown }).data)) {
-      throw new Error("Provider returned an invalid models response");
-    }
-
-    const provider = this.options.providerId ?? this.id;
-    return (payload as { data: Array<Record<string, unknown>> }).data.flatMap((item): DiscoveredModelRecord[] => {
-      if (typeof item.id !== "string" || !item.id.trim()) return [];
-      const record: DiscoveredModelRecord = { provider, id: item.id, capabilities: {} };
-      if (typeof item.name === "string" && item.name.trim()) record.displayName = item.name;
-      const context = item.context_length;
-      if (typeof context === "number" && Number.isSafeInteger(context) && context > 0) record.contextWindow = context;
-      const pricing = item.pricing;
-      if (pricing && typeof pricing === "object") {
-        const prompt = (pricing as Record<string, unknown>).prompt;
-        const completion = (pricing as Record<string, unknown>).completion;
-        const promptPrice = typeof prompt === "string" || typeof prompt === "number" ? Number(prompt) : NaN;
-        const completionPrice = typeof completion === "string" || typeof completion === "number" ? Number(completion) : NaN;
-        if (Number.isFinite(promptPrice) && promptPrice >= 0) record.inputPricePerMillion = promptPrice * 1_000_000;
-        if (Number.isFinite(completionPrice) && completionPrice >= 0) record.outputPricePerMillion = completionPrice * 1_000_000;
-      }
-      return [record];
-    });
-  }
-
-  async *stream(request: ModelRequest): AsyncIterable<ModelEvent> {
-    const fetcher = this.options.fetcher ?? fetch;
-    const maxRetries = Math.max(0, this.options.maxRetries ?? 2);
-    const baseDelay = Math.max(0, this.options.retryBaseDelayMs ?? 250);
-    const maxDelay = Math.max(baseDelay, this.options.maxRetryDelayMs ?? 4000);
-    let response: Response | undefined;
-
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      request.signal.throwIfAborted();
-      try {
-        response = await fetcher(this.options.baseUrl.replace(/\/$/, "") + "/chat/completions", {
-          method: "POST",
-          signal: request.signal,
-          headers: {
-            "content-type": "application/json",
-            ...(this.options.apiKey ? { authorization: "Bearer " + this.options.apiKey } : {}),
-            ...this.options.headers,
-          },
-          body: JSON.stringify({
-            model: request.model,
-            stream: true,
-            messages: toOpenAIMessages(request.messages),
-            tools: request.tools.map((tool) => ({
-              type: "function",
-              function: {
-                name: tool.name,
-                description: tool.description,
-                parameters: tool.inputSchema,
-              },
-            })),
-          }),
-        });
-
-        if (response.ok) break;
-        const retryable = [408, 409, 425, 429, 500, 502, 503, 504].includes(response.status);
-        const detail = await response.text().catch(() => "");
-        if (!retryable || attempt === maxRetries) throw new ProviderHttpError(response.status, detail);
-
-        const retryAfter = response.headers.get("retry-after");
-        const retryMs = retryAfter && /^\d+(\.\d+)?$/.test(retryAfter)
-          ? Math.min(maxDelay, Number(retryAfter) * 1000)
-          : Math.min(maxDelay, baseDelay * 2 ** attempt);
-        await delay(retryMs, request.signal);
-      } catch (error) {
-        if (request.signal.aborted) throw request.signal.reason ?? error;
-        if (error instanceof ProviderHttpError) throw error;
-        if (attempt === maxRetries) throw error;
-        await delay(Math.min(maxDelay, baseDelay * 2 ** attempt), request.signal);
-      }
-    }
-
-    if (!response?.ok) throw new Error("Provider request failed without a response");
-    if (!response.body) throw new Error("Provider returned an empty response body");
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    let finished = false;
-    let sawDoneMarker = false;
-    let sawFinishReason = false;
-    const pending = new Map<number, PendingTool>();
-
-    const emitTools = function* (): Generator<ModelEvent> {
-      for (const [index, tool] of [...pending.entries()].sort((a, b) => a[0] - b[0])) {
-        if (!tool.name) throw new Error("Provider emitted a tool call without a function name");
-        let input: unknown;
-        try {
-          input = JSON.parse(tool.arguments || "{}");
-        } catch {
-          throw new Error("Provider emitted malformed tool-call JSON for " + tool.name);
-        }
-        yield {
-          type: "tool_call",
-          call: { id: tool.id || "call_" + index, name: tool.name, input },
-        };
-      }
-      pending.clear();
-    };
-
-    const parseLine = function* (line: string): Generator<ModelEvent> {
-      const trimmed = line.trim();
-      if (!trimmed.startsWith("data:")) return;
-      const payload = trimmed.slice(5).trim();
-      if (!payload) return;
-      if (payload === "[DONE]") {
-        sawDoneMarker = true;
-        return;
-      }
-
-      let chunk: ChatChunk;
-      try {
-        chunk = JSON.parse(payload) as ChatChunk;
-      } catch {
-        throw new Error("Provider emitted malformed SSE JSON");
-      }
-      if (chunk.error?.message) throw new Error("Provider stream error: " + chunk.error.message);
-
-      const choice = chunk.choices?.[0];
-      const delta = choice?.delta;
-      if (delta?.content) yield { type: "text", text: delta.content };
-
-      for (const part of delta?.tool_calls ?? []) {
-        const current = pending.get(part.index) ?? { id: "", name: "", arguments: "" };
-        if (part.id) current.id = part.id;
-        if (part.function?.name) current.name += part.function.name;
-        if (part.function?.arguments) current.arguments += part.function.arguments;
-        pending.set(part.index, current);
-      }
-      if (choice?.finish_reason) {
-        sawFinishReason = true;
-        yield* emitTools();
-      }
-    };
-
-    let abortListener: (() => void) | undefined;
-    try {
-      const onAbort = () => {
-        void reader.cancel(request.signal.reason).catch(() => undefined);
-      };
-      abortListener = onAbort;
-      request.signal.addEventListener("abort", onAbort, { once: true });
-
-      while (true) {
-        request.signal.throwIfAborted();
-        const { value, done } = await reader.read();
-        request.signal.throwIfAborted();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split(/\r?\n/);
-        buffer = lines.pop() ?? "";
-        for (const line of lines) yield* parseLine(line);
-      }
-
-      buffer += decoder.decode();
-      if (buffer.trim()) yield* parseLine(buffer);
-      if (pending.size) yield* emitTools();
-      if (!sawDoneMarker && !sawFinishReason) {
-        throw new Error("Provider stream ended before a terminal marker");
-      }
-      finished = true;
-      yield { type: "done" };
-    } finally {
-      if (abortListener) request.signal.removeEventListener("abort", abortListener);
-      if (!finished) await reader.cancel(request.signal.reason).catch(() => undefined);
-      reader.releaseLock();
-    }
-  }
-}
-
-function delay(ms: number, signal: AbortSignal): Promise<void> {
-  if (ms <= 0) {
-    signal.throwIfAborted();
-    return Promise.resolve();
-  }
-  return new Promise((resolve, reject) => {
-    signal.throwIfAborted();
-    const cleanup = () => signal.removeEventListener("abort", onAbort);
-    const timer = setTimeout(() => {
-      cleanup();
-      resolve();
-    }, ms);
-    const onAbort = () => {
-      clearTimeout(timer);
-      cleanup();
-      reject(signal.reason ?? new Error("Aborted"));
-    };
-    signal.addEventListener("abort", onAbort, { once: true });
-  });
-}
+    const response = await fetcher((this.options.baseUrl ?? "https://api.anthropic.com").replace(/\/$/, "") + "/v1/messages", {
+      meth¨€€€€±•Ğ¥¹ÁÕĞèÕ¹­¹½İ¸ì(€€€€€€€€€ÑÉäì¥¹ÁÕĞ€ô)M=8¹Á…ÉÍ”¡Ñ½½°¹©Í½¸ñğ€‰íôˆ¤ìô…Ñ ìÑ¡É½Ü¹•ÜÉÉ½È ‰¹Ñ¡É½Á¥Œ•µ¥ÑÑ•µ…±™½Éµ•Ñ½½°¥¹ÁÕĞ)M=8ˆ¤ìô(€€€€€€€€€å¥•±ìÑåÁ”è€‰Ñ½½±}…±°ˆ°…±°èì¥èÑ½½°¹¥°¹…µ”èÑ½½°¹¹…µ”°¥¹ÁÕĞôôì(€€€€€€€€€Ñ½½±Ì¹‘•±•Ñ”¡•Ù•¹Ğ¹¥¹‘•à€üü€À¤ì(€€€€€€€ô(€€€€€ô(€€€€€¥˜€¡•Ù•¹Ğ¹ÑåÁ”€ôôô€‰µ•ÍÍ…•}ÍÑ½Àˆ¤å¥•±ìÑåÁ”è€‰‘½¹”ˆ°ÍÑ½ÁI•…Í½¸è€‰•¹‘}ÑÕÉ¸ˆôì(€€€ôì(€€€ÑÉäì(€€€€€İ¡¥±”€¡ÑÉÕ”¤ì(€€€€€€€É•ÅÕ•ÍĞ¹Í¥¹…°¹Ñ¡É½İ%™‰½ÉÑ• ¤ì(€€€€€€€½¹ÍĞìÙ…±Õ”°‘½¹”ô€ô…İ…¥ĞÉ•…‘•È¹É•… ¤ì(€€€€€€€‰Õ™™•È€¬ô‘•½‘•È¹‘•½‘”¡Ù…±Õ”°ìÍÑÉ•…´è€…‘½¹”ô¤ì(€€€€€€€½¹ÍĞ±¥¹•Ì€ô‰Õ™™•È¹ÍÁ±¥Ğ ‰q¸ˆ¤ì‰Õ™™•È€ô±¥¹•Ì¹Á½À ¤€üü€ˆˆì(€€€€€€€™½È€¡½¹ÍĞ±¥¹”½˜±¥¹•Ì¤ì(€€€€€€€€€½¹ÍĞÑÉ¥µµ•€ô±¥¹”¹ÑÉ¥´ ¤ì(€€€€€€€€€¥˜€ …ÑÉ¥µµ•¹ÍÑ…ÉÑÍ]¥Ñ  ‰‘…Ñ„èˆ¤¤½¹Ñ¥¹Õ”ì(€€€€€€€€€±•Ğ•Ù•¹Ğè¹Ñ¡É½Á¥MÑÉ•…µÙ•¹Ğì(€€€€€€€€€ÑÉäì•Ù•¹Ğ€ô)M=8¹Á…ÉÍ”¡ÑÉ¥µµ•¹Í±¥” Ô¤¹ÑÉ¥´ ¤¤…Ì¹Ñ¡É½Á¥MÑÉ•…µÙ•¹Ğìô(€€€€€€€€€…Ñ ìÑ¡É½Ü¹•ÜÉÉ½È ‰¹Ñ¡É½Á¥Œ•µ¥ÑÑ•µ…±™½Éµ•MM)M=8ˆ¤ìô(€€€€€€€€€™½È€¡½¹ÍĞ½ÕÑÁÕĞ½˜•µ¥Ğ¡•Ù•¹Ğ¤¤å¥•±½ÕÑÁÕĞì(€€€€€€€ô(€€€€€€€¥˜€¡‘½¹”¤‰É•…¬ì(€€€€€ô(€€€€€¥˜€¡‰Õ™™•È¹ÑÉ¥´ ¤¹ÍÑ…ÉÑÍ]¥Ñ ¢¢&WGW&â·&V6÷&EÓ°¢Ò“°¢Ğ ¢7–æ2§7G&VÒ‡&WVW7C¢ÖöFVÅ&WVW7B“¢7–æ4—FW&&ÆSÄÖöFVÄWfVçCâ°¢6öç7BfWF6†W"ÒF†—2æ÷F–öç2æfWF6†W"óòfWF6ƒ°¢6öç7BÖW76vW2Ò&WVW7BæÖW76vW2æÖ‚†ÖW76vR’Óâ°¢–b†ÖW76vRç&öÆRÓÓÒ'FööÂ"’&WGW&â²&öÆS¢'FööÂ"Â6öçFVçC¢ÖW76vRæ6öçFVçBÓ°¢–b†ÖW76vRç&öÆRÓÓÒ&76—7FçB"bbÖW76vRçFööÄ6ÆÇ3òæÆVæwF‚’&WGW&â²&öÆS¢&76—7FçB"Â6öçFVçC¢ÖW76vRæ6öçFVçBÂFööÅö6ÆÇ3¢ÖW76vRçFööÄ6ÆÇ2æÖ‚†6ÆÂ’Óâ‡²gVæ7F–öã¢²æÖS¢6ÆÂææÖRÂ&wVÖVçG3¢6ÆÂæ–çWBÒÒ’’Ó°¢&WGW&â²&öÆS¢ÖW76vRç&öÆRÂ6öçFVçC¢ÖW76vRæ6öçFVçBÓ°¢Ò“°¢6öç7B&W7öç6RÒv—BfWF6†W"‚‡F†—2æ÷F–öç2æ&6UW&Âóò&‡GG¢òó#rããã£C3B"’ç&WÆ6R‚õÂòBòÂ""’²"ö’ö6†B"Â°¢ÖWF†öC¢%õ5B"Â6–væÃ¢&WVW7Bç6–væÂÀ¢†VFW'3¢²&6öçFVçB×G—R#¢&Æ–6F–öâö§6öâ"ÂââçF†—2æ÷F–öç2æ†VFW'2ÒÀ¢&öG“¢¥4ôâç7G&–æv–g’‡²ÖöFVÃ¢&WVW7BæÖöFVÂÂ7G&VÓ¢G'VRÂÖW76vW2À¢âââ‡&WVW7BçFööÇ2æÆVæwF‚ò²FööÇ3¢&WVW7BçFööÇ2æÖ‚‡FööÂ’Óâ‡²G—S¢&gVæ7F–öâ"ÂgVæ7F–öã¢²æÖS¢FööÂææÖRÂFW67&—F–öã¢FööÂæFW67&—F–öâÂ&ÖWFW'3¢FööÂæ–çWE66†VÖÒÒ’’Ò¢·Ò’À¢Ò’Àª
