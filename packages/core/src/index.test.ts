@@ -28,7 +28,13 @@ describe("AgentRuntime",()=>{
     const tools=new ToolRegistry();const execute=vi.fn(async()=>({saved:true}));
     tools.register({name:"write_file",description:"write",risk:"write",inputSchema:{type:"object",properties:{path:{type:"string"}},required:["path"],additionalProperties:false},parse:(v)=>v as {path:string},execute});
     const approval:ApprovalController={request:async()=>({decision:"approve",actor:"user"})};
-    const provider:ModelProvider={id:"tool",async *stream(){yield {type:"tool_call",call:{id:"c1",name:"write_file",input:{path:"a.txt"}}} as const;yield {type:"done"} as const;}};
+    let toolRequested=false;
+    const provider:ModelProvider={id:"tool",async *stream(){
+      if(toolRequested){yield {type:"text",text:"saved"} as const;yield {type:"done"} as const;return;}
+      toolRequested=true;
+      yield {type:"tool_call",call:{id:"c1",name:"write_file",input:{path:"a.txt"}}} as const;
+      yield {type:"done"} as const;
+    }};
     const runtime=new AgentRuntime({provider,tools,policy:new DefaultPolicy(),model:"fixture",approval});
     const events=[];for await(const event of runtime.run({sessionId:"s3",prompt:"save"}))events.push(event);
     expect(execute).toHaveBeenCalledOnce();
