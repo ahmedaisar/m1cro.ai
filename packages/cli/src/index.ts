@@ -71,7 +71,8 @@ async function approvalPrompt(request:Parameters<ApprovalController["request"]>[
  if(!stdin.isTTY||!stdout.isTTY)return {decision:"reject",actor:"user",reason:"Interactive approval requires a TTY"};
  const rl=createInterface({input:stdin,output:stdout});
  try{
-  stdout.write(`\nApproval required\nTool: ${request.toolName}\nRisk: ${request.risk}\nInput: ${JSON.stringify(request.input,null,2)}\n`);
+  const safeInput=JSON.stringify(request.input,null,2);
+  stdout.write(`\nApproval required\nTool: ${request.toolName}\nRisk: ${request.risk}\nInput: ${safeInput.length>2000?safeInput.slice(0,2000)+"… (truncated)":safeInput}\n`);
   signal.throwIfAborted();
   const answer=await rl.question("Approve this exact tool call? [y/N] ");
   signal.throwIfAborted();
@@ -88,7 +89,7 @@ export async function runCli(argv=process.argv.slice(2)):Promise<number>{
  let args:Args;
  try{args=parseArgs(argv);}catch(error){console.error(error instanceof Error?error.message:String(error));return 2;}
  if(args.help){stdout.write(help());return 0;}
- const config=await loadConfig();
+ let config:Config;\n try{config=await loadConfig();}catch(error){console.error(error instanceof Error?error.message:String(error));return 2;}
  const merged:Config={
   baseUrl:args.baseUrl??process.env.OPENAI_BASE_URL??config.baseUrl,
   model:args.model??process.env.M1CRO_MODEL??config.model,
@@ -101,7 +102,7 @@ export async function runCli(argv=process.argv.slice(2)):Promise<number>{
    merged.apiKey=(await rl.question("OpenAI-compatible API key (input is visible in this terminal): ")).trim();
   }finally{rl.close();}
   if(!merged.apiKey){console.error("An API key is required.");return 2;}
-  await saveConfig(merged);
+  try{await saveConfig(merged);}catch(error){console.error(error instanceof Error?error.message:String(error));return 2;}
  }
  if(!/^https?:\/\//i.test(merged.baseUrl)){console.error("Provider base URL must use http or https.");return 2;}
  const base=path.join(os.homedir(),".m1cro"),sessions=path.join(base,"sessions");
