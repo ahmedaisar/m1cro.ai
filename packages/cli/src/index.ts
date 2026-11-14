@@ -135,6 +135,16 @@ export async function runCli(argv=process.argv.slice(2)):Promise<number>{
   return 2;
  }
  if(!/^https?:\/\//i.test(merged.baseUrl)){console.error("Provider base URL must use http or https.");return 2;}
+ const modelProvider=createProvider(merged.provider,merged.baseUrl,apiKey);
+ if(args.listModels){
+  if(!modelProvider.discoverModels){console.error("The selected provider does not support model discovery.");return 2;}
+  try{
+   const models=await modelProvider.discoverModels();
+   if(models.length===0)stdout.write("No models were returned by the provider.\n");
+   else for(const model of models)stdout.write(model.id+"\t"+(model.displayName??"")+(model.contextWindow?"\t"+model.contextWindow+" context":"")+"\n");
+   return 0;
+  }catch(error){console.error(error instanceof Error?error.message:String(error));return 1;}
+ }
  const base=path.join(os.homedir(),".m1cro"),sessions=path.join(base,"sessions");
  try{
   for(const directory of [base,sessions]){
@@ -148,16 +158,6 @@ export async function runCli(argv=process.argv.slice(2)):Promise<number>{
  const sessionStore=new JsonlSessionStore(id=>path.join(sessions,`${id}.jsonl`));
  const tools=new ToolRegistry();
  registerFilesystemTools(tools,new Workspace({root:path.resolve(args.workspace)}));
- const modelProvider=createProvider(merged.provider,merged.baseUrl,apiKey);
- if(args.listModels){
-  if(!modelProvider.discoverModels){console.error("The selected provider does not support model discovery.");return 2;}
-  try{
-   const models=await modelProvider.discoverModels();
-   if(models.length===0)stdout.write("No models were returned by the provider.\\n");
-   else for(const model of models)stdout.write(model.id+"\\t"+(model.displayName??"")+(model.contextWindow?"\\t"+model.contextWindow+" context":"")+"\\n");
-   return 0;
-  }catch(error){console.error(error instanceof Error?error.message:String(error));return 1;}
- }
  const approval:ApprovalController={request:approvalPrompt};
  const runtime=new AgentRuntime({provider:modelProvider,tools,policy:new DefaultPolicy(),model:merged.model,approval,sessionStore});
  stdout.write(`m1cro.ai · ${merged.provider} · model ${merged.model}\nWorkspace: ${path.resolve(args.workspace)}\nSession: ${sessionId}\nType /help for commands.\n\n`);
