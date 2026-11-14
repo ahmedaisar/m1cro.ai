@@ -62,4 +62,24 @@ describe("AgentRuntime",()=>{
     expect(execute).not.toHaveBeenCalled();
     expect(events).toContainEqual(expect.objectContaining({type:"approval.resolved",callId:"c4",decision:"rejected"}));
   });
+  it("persists messages and restores history in a later turn",async()=>{
+    const records:Array<{id:string;timestamp:string;kind:"message"|"event";data:unknown}>=[];
+    const sessionStore={
+      append:async(_sessionId:string,record:typeof records[number])=>{records.push(record);},
+      read:async()=>records
+    };
+    let seenMessages:ModelRequest["messages"]=[];
+    const capturingProvider:ModelProvider={id:"history",async *stream(request){seenMessages=request.messages;yield {type:"text",text:"second"} as const;yield {type:"done"} as const;}};
+    const runtime=new AgentRuntime({provider:capturingProvider,tools:new ToolRegistry(),policy:new DefaultPolicy(),model:"fixture",sessionStore});
+    for await(const _ of runtime.run({sessionId:"history",prompt:"first"}))void _;
+    // Seed a prior assistant reply to make the restored conversational context explicit.
+    await sessionStore.append("history",{id:"prior",timestamp:new Date().toISOString(),kind:"message",data:{role:"assistant",content:"first reply"}});
+    for await(const _ of runtime.run({sessionId:"history",prompt:"second question"}))void _;
+    expect(seenMessages).toEqual([
+      {role:"user",content:"first"},
+      {role:"assistant",content:"first reply"},
+      {role:"user",content:"second question"}
+    ]);
+  });
+
 });
