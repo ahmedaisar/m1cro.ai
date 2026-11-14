@@ -27,3 +27,13 @@ Establish explicit package boundaries and versioned contracts. Split services on
 ## ADR-007: Remote execution is a later release
 **Status:** Proposed
 Do not expose customer workloads until tenant isolation, process/network controls, secrets, quotas, resource limits, artifact retention and incident response are designed and tested.
+
+
+## ADR-008: No upstream source reuse before written provenance approval
+**Status:** Proposed — blocking gate
+
+The public OpenClaude and Verboo repository notice states that the code contains Claude Code-derived proprietary material and that the MIT grant for contributor modifications applies only where legally permissible. The notice explicitly says the underlying derived code remains subject to Anthropic copyright and the project does not have Anthropic authorization to distribute that proprietary source.
+
+Until qualified counsel reviews the exact source material and distribution plan, m1cro will not import code from these repositories. Product/behavior research may inform independently authored implementations. Maintain a per-file provenance manifest for any later-approved reuse.
+
+See [license and provenance audit](../research/license-provenance-audit.md). This is an engineering risk control, not legal advice.
