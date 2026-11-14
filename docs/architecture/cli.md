@@ -1,6 +1,6 @@
 # Interactive CLI — implementation slice 5
 
-The CLI provides a local terminal client over the shared m1cro runtime.
+The CLI provides a local terminal client over the shared m1cro runtime. It is distributed as the `m1cro` binary from `@m1cro/cli`.
 
 ## Entry points and configuration
 - `m1cro [options] [prompt...]` starts an interactive session; a prompt argument runs one turn and exits.
@@ -11,7 +11,7 @@ The CLI provides a local terminal client over the shared m1cro runtime.
 
 ## Turn lifecycle
 1. A session ID is generated or resumed via `--session`.
-2. Persisted message records are restored into the conversation history.
+2. Prior message records are read back into the model conversation; event records remain a local audit trail.
 3. The runtime sends provider-neutral messages/tool schemas to the OpenAI-compatible adapter.
 4. Read tools run under the default policy. Write-risk tools emit an approval request.
 5. The CLI asks for a typed confirmation of the exact tool and input. Only a literal `y` returns an approval decision attributed to the user; all other input rejects.
