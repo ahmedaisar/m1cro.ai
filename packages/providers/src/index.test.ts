@@ -50,4 +50,15 @@ describe("OpenAICompatibleProvider",()=>{
   await expect(first).rejects.toBeTruthy();
   expect(cancelled).toBe(true);
  });
+ it("serializes assistant tool-call messages with function name and JSON arguments",async()=>{
+  const fetcher=vi.fn(async(_input:RequestInfo|URL,init?:RequestInit)=>{
+   const body=JSON.parse(String(init?.body));
+   expect(body.messages).toEqual([{role:"assistant",content:null,tool_calls:[{id:"c9",type:"function",function:{name:"read_file",arguments:"{\"path\":\"a.txt\"}"}}]}]);
+   return sse(['data: [DONE]\n\n']);
+  });
+  const provider=new OpenAICompatibleProvider({baseUrl:"https://provider.test/v1",fetcher});
+  const messages:ModelRequest["messages"]=[{role:"assistant",content:"",toolCalls:[{id:"c9",name:"read_file",input:{path:"a.txt"}}]}];
+  for await(const event of provider.stream(request(messages)))void event;
+ });
+
 });
