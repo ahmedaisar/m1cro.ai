@@ -65,7 +65,16 @@ export class AgentRuntime {
             yield {type:"tool.result",turnId,callId:call.id,output,isError:true};
             continue;
           }
-          const decision=this.options.policy.evaluate({toolName:tool.name,risk:tool.risk,input:call.input});
+          try{
+      this.options.tools.validateInput(call.name,call.input);
+     }catch(error){
+      const output={error:error instanceof Error?error.message:String(error)};
+      const msg:ModelMessage={role:"tool",toolCallId:call.id,name:call.name,content:JSON.stringify(output)};
+      messages.push(msg);await record("message",msg);
+      yield {type:"tool.result",turnId,callId:call.id,output,isError:true};
+      continue;
+     }
+     const decision=this.options.policy.evaluate({toolName:tool.name,risk:tool.risk,input:call.input});
           if(decision==="deny"){
             const output={error:"Tool execution denied by policy"};
             messages.push({role:"tool",toolCallId:call.id,name:call.name,content:JSON.stringify(output)});
