@@ -44,7 +44,10 @@ export class AgentRuntime {
     const calls:ToolCall[]=[];let sawDone=false;
     for await(const event of this.options.provider.stream({model:this.options.model,messages,tools:this.options.tools.list().map(({name,description,inputSchema})=>({name,description,inputSchema})),signal:controller.signal})){
      if(event.type==="text"){
-      messages.push({role:"assistant",content:event.text});await record("event",{type:"text.delta",turnId,delta:event.text});yield {type:"text.delta",turnId,delta:event.text};
+      const last=messages.at(-1);
+      if(last?.role==="assistant"&&!last.toolCalls)last.content+=event.text;
+      else messages.push({role:"assistant",content:event.text});
+      await record("event",{type:"text.delta",turnId,delta:event.text});yield {type:"text.delta",turnId,delta:event.text};
      }else if(event.type==="tool_call"){
       calls.push(event.call);await record("event",{type:"tool.call",turnId,call:event.call});yield {type:"tool.call",turnId,callId:event.call.id,toolName:event.call.name,input:event.call.input};
      }else if(event.type==="done")sawDone=true;
