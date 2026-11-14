@@ -80,11 +80,17 @@ async function approvalPrompt(request:Parameters<ApprovalController["request"]>[
   return answer.trim().toLowerCase()==="y"?{decision:"approve",actor:"user"}:{decision:"reject",actor:"user",reason:"User declined"};
  }finally{rl.close();}
 }
+function safeTerminalText(value:string):string{
+ return value
+  .replace(/\u001b\[[0-?]*[ -/]*[@-~]/g,"")
+  .replace(/\u001b\][^\u0007]*(?:\u0007|\u001b\\)/g,"")
+  .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/g,"");
+}
 function formatEvent(event:Awaited<ReturnType<AgentRuntime["run"]>> extends AsyncIterable<infer T>?T:never):void{
- if(event.type==="text.delta")stdout.write(event.delta);
- else if(event.type==="tool.call")stdout.write(`\n[tool] ${event.toolName}\n`);
- else if(event.type==="tool.result")stdout.write(`\n[tool result] ${event.isError?"error":"ok"}\n`);
- else if(event.type==="turn.status"&&(event.status==="failed"||event.status==="cancelled"))stdout.write(`\n[turn ${event.status}] ${event.reason??""}\n`);
+ if(event.type==="text.delta")stdout.write(safeTerminalText(event.delta));
+ else if(event.type==="tool.call")stdout.write("\n[tool] "+safeTerminalText(event.toolName)+"\n");
+ else if(event.type==="tool.result")stdout.write("\n[tool result] "+(event.isError?"error":"ok")+"\n");
+ else if(event.type==="turn.status"&&(event.status==="failed"||event.status==="cancelled"))stdout.write("\n[turn "+event.status+"] "+safeTerminalText(event.reason??"")+"\n");
 }
 export async function runPrompt(runtime:AgentRuntime,sessionId:string,prompt:string):Promise<number>{
  let exitCode=0;
