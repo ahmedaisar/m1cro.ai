@@ -5,7 +5,8 @@ export interface DiscoveredModelRecord { provider: string; id: string; displayNa
 
 export interface ModelProvider {
   readonly id: string;
-  stream(request: ModelRequest): AsyncIterable<ModelEvent>;\n  discoverModels?(): Promise<DiscoveredModelRecord[]>;
+  stream(request: ModelRequest): AsyncIterable<ModelEvent>;
+  discoverModels?(): Promise<DiscoveredModelRecord[]>;
 }
 
 type OpenAIMessage = {
