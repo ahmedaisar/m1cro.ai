@@ -17,7 +17,7 @@ function sse(chunks: string[], appendDone = true): Response {
     start(controller) {
       for (const chunk of chunks) controller.enqueue(new TextEncoder().encode(chunk));
       if (appendDone && !chunks.join("").includes("data: [DONE]")) {
-        controller.enqueue(new TextEncoder().encode("data: [DONE]\\n\\n"));
+        controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"));
       }
       controller.close();
     },
@@ -84,7 +84,7 @@ describe("OpenAICompatibleProvider", () => {
   it("rejects an abruptly terminated stream without a terminal marker", async () => {
     const provider = new OpenAICompatibleProvider({
       baseUrl: "https://provider.test/v1",
-      fetcher: vi.fn(async () => sse(['data: {"choices":[{"delta":{"content":"partial"}}]}\\n\\n'], false)),
+      fetcher: vi.fn(async () => sse(['data: {"choices":[{"delta":{"content":"partial"}}]}\n\n'], false)),
     });
     await expect(async () => {
       for await (const event of provider.stream(request())) void event;
