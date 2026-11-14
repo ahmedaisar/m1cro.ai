@@ -1,5 +1,8 @@
 import type { ModelEvent, ModelMessage, ModelRequest } from "@m1cro/protocol";
 
+
+export interface DiscoveredModelRecord { provider: string; id: string; displayName?: string; contextWindow?: number; inputPricePerMillion?: number; outputPricePerMillion?: number; capabilities: Partial<Record<"text" | "toolCalling" | "vision" | "jsonMode" | "streaming" | "reasoning" | "embeddings", { state: "supported" | "unsupported" | "unknown"; source: "provider" | "user" | "inferred" | "default" }>>; }
+
 export interface ModelProvider {
   readonly id: string;
   stream(request: ModelRequest): AsyncIterable<ModelEvent>;
@@ -64,6 +67,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
 
   constructor(private readonly options: {
     baseUrl: string;
+    providerId?: string;
     apiKey?: string;
     headers?: Record<string, string>;
     fetcher?: typeof fetch;
@@ -71,6 +75,46 @@ export class OpenAICompatibleProvider implements ModelProvider {
     retryBaseDelayMs?: number;
     maxRetryDelayMs?: number;
   }) {}
+
+  /** Discover models from an OpenAI-compatible /models endpoint. Unknown capabilities stay unknown. */
+  async discoverModels(): Promise<DiscoveredModelRecord[]> {
+    const fetcher = this.options.fetcher ?? fetch;
+    const response = await fetcher(this.options.baseUrl.replace(/\/$/, "") + "/models", {
+      method: "GET",
+      headers: {
+        ...(this.options.apiKey ? { authorization: "Bearer " + this.options.apiKey } : {}),
+        ...this.options.headers,
+      },
+    });
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      throw new ProviderHttpError(response.status, detail || response.statusText);
+    }
+
+    const payload: unknown = await response.json();
+    if (!payload || typeof payload !== "object" || !Array.isArray((payload as { data?: unknown }).data)) {
+      throw new Error("Provider returned an invalid models response");
+    }
+
+    const provider = this.options.providerId ?? this.id;
+    return (payload as { data: Array<Record<string, unknown>> }).data.flatMap((item): DiscoveredModelRecord[] => {
+      if (typeof item.id !== "string" || !item.id.trim()) return [];
+      const record: DiscoveredModelRecord = { provider, id: item.id, capabilities: {} };
+      if (typeof item.name === "string" && item.name.trim()) record.displayName = item.name;
+      const context = item.context_length;
+      if (typeof context === "number" && Number.isSafeInteger(context) && context > 0) record.contextWindow = context;
+      const pricing = item.pricing;
+      if (pricing && typeof pricing === "object") {
+        const prompt = (pricing as Record<string, unknown>).prompt;
+        const completion = (pricing as Record<string, unknown>).completion;
+        const promptPrice = typeof prompt === "string" || typeof prompt === "number" ? Number(prompt) : NaN;
+        const completionPrice = typeof completion === "string" || typeof completion === "number" ? Number(completion) : NaN;
+        if (Number.isFinite(promptPrice) && promptPrice >= 0) record.inputPricePerMillion = promptPrice * 1_000_000;
+        if (Number.isFinite(completionPrice) && completionPrice >= 0) record.outputPricePerMillion = completionPrice * 1_000_000;
+      }
+      return [record];
+    });
+  }
 
   async *stream(request: ModelRequest): AsyncIterable<ModelEvent> {
     const fetcher = this.options.fetcher ?? fetch;
