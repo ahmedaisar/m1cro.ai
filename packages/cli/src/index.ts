@@ -1,6 +1,6 @@
 import {createInterface} from "node:readline/promises";
 import {stdin,stdout} from "node:process";
-import {mkdir,readFile} from "node:fs/promises";
+import {chmod,lstat,mkdir,readFile} from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import {randomUUID} from "node:crypto";
@@ -118,7 +118,14 @@ export async function runCli(argv=process.argv.slice(2)):Promise<number>{
  }
  if(!/^https?:\/\//i.test(merged.baseUrl)){console.error("Provider base URL must use http or https.");return 2;}
  const base=path.join(os.homedir(),".m1cro"),sessions=path.join(base,"sessions");
- try{await mkdir(sessions,{recursive:true,mode:0o700});}catch(error){console.error("Could not prepare local session storage.");return 2;}
+ try{
+  for(const directory of [base,sessions]){
+   await mkdir(directory,{recursive:true,mode:0o700});
+   const stat=await lstat(directory);
+   if(stat.isSymbolicLink()||!stat.isDirectory())throw new Error("Session storage path must be a real directory");
+   await chmod(directory,0o700);
+  }
+ }catch(error){console.error("Could not prepare private local session storage.");return 2;}
  const sessionId=args.session??randomUUID().replace(/-/g,"");
  const sessionStore=new JsonlSessionStore(id=>path.join(sessions,`${id}.jsonl`));
  const tools=new ToolRegistry();
