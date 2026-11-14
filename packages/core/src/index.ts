@@ -32,23 +32,30 @@ export class AgentRuntime {
       yield {type:"turn.status",turnId,status:"running"};
       for(let round=0;round<=maxRounds;round++){
         controller.signal.throwIfAborted();
-        const calls:ToolCall[]=[];let sawDone=false;
+        const calls:ToolCall[]=[];let assistantText="";
         for await(const event of this.options.provider.stream({
           model:this.options.model,messages,
           tools:this.options.tools.list().map(({name,description,inputSchema})=>({name,description,inputSchema})),
           signal:controller.signal
         })){
           if(event.type==="text"){
-            messages.push({role:"assistant",content:event.text});
+            assistantText+=event.text;
             yield {type:"text.delta",turnId,delta:event.text};
           } else if(event.type==="tool_call"){
             calls.push(event.call);
             yield {type:"tool.call",turnId,callId:event.call.id,toolName:event.call.name,input:event.call.input};
-          } else if(event.type==="done") sawDone=true;
+          } else if(event.type==="done") { /* end of provider response */ }
+        }
+        if(round===maxRounds&&calls.length>0) throw new Error("Agent reached maximum tool-round limit");
+        if(calls.length>0){
+          const assistantMessage:ModelMessage={role:"assistant",content:assistantText,toolCalls:calls};
+          messages.push(assistantMessage);
+        }else if(assistantText){
+          const assistantMessage:ModelMessage={role:"assistant",content:assistantText};
+          messages.push(assistantMessage);
         }
         if(calls.length===0) break;
-        if(round===maxRounds) throw new Error("Agent reached maximum tool-round limit");
-        messages.push({role:"assistant",content:"",toolCalls:calls});
+        
         for(const call of calls){
           controller.signal.throwIfAborted();
           const tool=this.options.tools.get(call.name);
