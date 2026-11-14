@@ -12,15 +12,8 @@ function toOpenAIMessages(messages:ModelMessage[]):OpenAIMessage[]{
   if(message.role==="tool"){
    if(!message.toolCallId)throw new Error("Tool messages require a toolCallId");
    result.push({role:"tool",content:message.content,tool_call_id:message.toolCallId,...(message.name?{name:message.name}:{})});
-  }else if(message.role==="assistant" && message.toolCalls?.length){
-   result.push({
-    role:"assistant",
-    content:message.content || null,
-    tool_calls:message.toolCalls.map(call=>({
-     id:call.id,type:"function",
-     function:{name:call.name,arguments:JSON.stringify(call.input)}
-    }))
-   });
+  }else if(message.role==="assistant"&&message.toolCalls?.length){
+   result.push({role:"assistant",content:message.content||null,tool_calls:message.toolCalls.map(call=>({id:call.id,type:"function",function:{name:call.name,arguments:JSON.stringify(call.input)}}))});
   }else result.push({role:message.role,content:message.content});
  }
  return result;
