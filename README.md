@@ -56,3 +56,6 @@ You can also send one prompt with `pnpm cli -- "Explain this codebase"`. Options
 - [Architecture decisions](docs/architecture/ADRs.md)
 - [Runtime foundation notes](docs/architecture/runtime-foundation.md)
 - [Roadmap](docs/ROADMAP.md)
+
+
+<!-- PR #6 integration check refresh: local CLI package is under packages/cli. -->
