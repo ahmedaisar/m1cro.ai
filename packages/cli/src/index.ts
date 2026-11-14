@@ -10,7 +10,7 @@ import {OpenAICompatibleProvider} from "@m1cro/providers";
 import {JsonlSessionStore} from "@m1cro/sessions";
 import {registerFilesystemTools,ToolRegistry,Workspace} from "@m1cro/tools";
 
-type Config={baseUrl:string;model:string;apiKey?:string};
+type Config={baseUrl:string;model:string};
 type Args={prompt:string[];workspace:string;session?:string;model?:string;baseUrl?:string;help:boolean};
 const defaultConfig:Config={baseUrl:"https://api.openai.com/v1",model:"gpt-4o-mini"};
 function parseArgs(argv:string[]):Args{
@@ -57,15 +57,12 @@ Filesystem write tools trigger an explicit terminal approval prompt.
 async function loadConfig():Promise<Config>{
  const dir=path.join(os.homedir(),".m1cro"),file=path.join(dir,"config.json");
  try{
-  const parsed=JSON.parse(await readFile(file,"utf8")) as Partial<Config>;
-  return {baseUrl:parsed.baseUrl??defaultConfig.baseUrl,model:parsed.model??defaultConfig.model,...(parsed.apiKey?{apiKey:parsed.apiKey}:{})};
+  const parsed=JSON.parse(await readFile(file,"utf8")) as Partial<Config> & {apiKey?:unknown};
+  if(typeof parsed.apiKey==="string"&&parsed.apiKey.length>0){
+   throw new Error("Plaintext API keys in ~/.m1cro/config.json are not supported. Remove the apiKey field and set OPENAI_API_KEY in your environment.");
+  }
+  return {baseUrl:parsed.baseUrl??defaultConfig.baseUrl,model:parsed.model??defaultConfig.model};
  }catch(error){if((error as NodeJS.ErrnoException).code!=="ENOENT")throw new Error("Could not read ~/.m1cro/config.json");return defaultConfig;}
-}
-async function saveConfig(config:Config):Promise<void>{
- const dir=path.join(os.homedir(),".m1cro");
- await mkdir(dir,{recursive:true,mode:0o700});
- const file=path.join(dir,"config.json");
- await writeFile(file,JSON.stringify(config,null,2)+"\n",{encoding:"utf8",mode:0o600});
 }
 async function approvalPrompt(request:Parameters<ApprovalController["request"]>[0],signal:AbortSignal):Promise<Awaited<ReturnType<ApprovalController["request"]>>>{
  if(!stdin.isTTY||!stdout.isTTY)return {decision:"reject",actor:"user",reason:"Interactive approval requires a TTY"};
@@ -85,6 +82,15 @@ function formatEvent(event:Awaited<ReturnType<AgentRuntime["run"]>> extends Asyn
  else if(event.type==="tool.result")stdout.write(`\n[tool result] ${event.isError?"error":"ok"}\n`);
  else if(event.type==="turn.status"&&(event.status==="failed"||event.status==="cancelled"))stdout.write(`\n[turn ${event.status}] ${event.reason??""}\n`);
 }
+async function runPrompt(runtime:AgentRuntime,sessionId:string,prompt:string):Promise<number>{
+ let exitCode=0;
+ for await(const event of runtime.run({sessionId,prompt})){
+  formatEvent(event);
+  if(event.type==="turn.status"&&(event.status==="failed"||event.status==="cancelled"))exitCode=1;
+ }
+ stdout.write("\\n");
+ return exitCode;
+}
 export async function runCli(argv=process.argv.slice(2)):Promise<number>{
  let args:Args;
  try{args=parseArgs(argv);}catch(error){console.error(error instanceof Error?error.message:String(error));return 2;}
@@ -96,14 +102,10 @@ export async function runCli(argv=process.argv.slice(2)):Promise<number>{
   model:args.model??process.env.M1CRO_MODEL??config.model,
   ...((process.env.OPENAI_API_KEY??config.apiKey)?{apiKey:process.env.OPENAI_API_KEY??config.apiKey}:{})
  };
- if(!merged.apiKey){
-  if(!stdin.isTTY||!stdout.isTTY){console.error("Set OPENAI_API_KEY or configure ~/.m1cro/config.json before running non-interactively.");return 2;}
-  const rl=createInterface({input:stdin,output:stdout});
-  try{
-   merged.apiKey=(await rl.question("OpenAI-compatible API key (input is visible in this terminal): ")).trim();
-  }finally{rl.close();}
-  if(!merged.apiKey){console.error("An API key is required.");return 2;}
-  try{await saveConfig(merged);}catch(error){console.error(error instanceof Error?error.message:String(error));return 2;}
+ const apiKey=process.env.OPENAI_API_KEY;
+ if(!apiKey){
+  console.error("Set OPENAI_API_KEY in your environment. m1cro does not prompt for or persist plaintext API keys.");
+  return 2;
  }
  if(!/^https?:\/\//i.test(merged.baseUrl)){console.error("Provider base URL must use http or https.");return 2;}
  const base=path.join(os.homedir(),".m1cro"),sessions=path.join(base,"sessions");
@@ -112,7 +114,7 @@ export async function runCli(argv=process.argv.slice(2)):Promise<number>{
  const sessionStore=new JsonlSessionStore(id=>path.join(sessions,`${id}.jsonl`));
  const tools=new ToolRegistry();
  registerFilesystemTools(tools,new Workspace({root:path.resolve(args.workspace)}));
- const provider=new OpenAICompatibleProvider({baseUrl:merged.baseUrl,apiKey:merged.apiKey});
+ const provider=new OpenAICompatibleProvider({baseUrl:merged.baseUrl,apiKey});
  const approval:ApprovalController={request:approvalPrompt};
  const runtime=new AgentRuntime({provider,tools,policy:new DefaultPolicy(),model:merged.model,approval,sessionStore});
  stdout.write(`m1cro.ai · model ${merged.model}\nWorkspace: ${path.resolve(args.workspace)}\nSession: ${sessionId}\nType /help for commands.\n\n`);
