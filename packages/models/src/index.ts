@@ -109,3 +109,68 @@ export class ModelCatalog {
 export function capabilityState(model: ModelRecord, capability: ModelCapability): CapabilityState {
   return model.capabilities[capability]?.state ?? "unknown";
 }
+
+
+export type ModelCompatibility = "compatible" | "incompatible" | "unknown";
+
+export interface ModelCapabilityEvaluation {
+  status: ModelCompatibility;
+  required: ModelCapability[];
+  supported: ModelCapability[];
+  unsupported: ModelCapability[];
+  unknown: ModelCapability[];
+}
+
+export interface ModelCompatibilityGroups {
+  /** Models that explicitly support every requested capability. Safe to auto-select. */
+  compatible: ModelRecord[];
+  /** Models with no explicit contradiction, but at least one capability is unknown. */
+  needsVerification: ModelRecord[];
+  /** Models explicitly missing one or more requested capabilities. */
+  incompatible: ModelRecord[];
+}
+
+/**
+ * Evaluate a model against task requirements without treating unknown metadata as support.
+ * A model is auto-selectable only when every required capability is explicitly supported.
+ */
+export function evaluateModelCapabilities(
+  model: ModelRecord,
+  required: readonly ModelCapability[],
+): ModelCapabilityEvaluation {
+  const uniqueRequired = [...new Set(required)];
+  const supported: ModelCapability[] = [];
+  const unsupported: ModelCapability[] = [];
+  const unknown: ModelCapability[] = [];
+  for (const capability of uniqueRequired) {
+    const state = capabilityState(model, capability);
+    if (state === "supported") supported.push(capability);
+    else if (state === "unsupported") unsupported.push(capability);
+    else unknown.push(capability);
+  }
+  return {
+    status: unsupported.length > 0 ? "incompatible" : unknown.length > 0 ? "unknown" : "compatible",
+    required: uniqueRequired,
+    supported,
+    unsupported,
+    unknown,
+  };
+}
+
+/**
+ * Partition catalog records for capability-aware selection.
+ * Input order is preserved within each group; no model-name heuristics or silent fallbacks.
+ */
+export function partitionModelsByCapabilities(
+  models: readonly ModelRecord[],
+  required: readonly ModelCapability[],
+): ModelCompatibilityGroups {
+  const groups: ModelCompatibilityGroups = { compatible: [], needsVerification: [], incompatible: [] };
+  for (const model of models) {
+    const evaluation = evaluateModelCapabilities(model, required);
+    if (evaluation.status === "compatible") groups.compatible.push(model);
+    else if (evaluation.status === "unknown") groups.needsVerification.push(model);
+    else groups.incompatible.push(model);
+  }
+  return groups;
+}
