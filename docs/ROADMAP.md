@@ -2,7 +2,7 @@
 
 ## Delivery status — 2026-11-15
 
-The initial runtime foundation was merged through PRs #1–#6. Follow-up milestones added the normalized model catalog (PR #9), OpenAI-compatible model discovery (PR #10), and Anthropic/Ollama adapters (PR #12). This remains a **foundation milestone, not completion of the MVP**. The CLI currently uses the OpenAI-compatible provider path; the additional adapters and catalog are package-level capabilities pending full CLI configuration/wiring.
+The initial runtime foundation was merged through PRs #1–#6. Follow-up milestones added the normalized model catalog (PR #9), OpenAI-compatible model discovery (PR #10), Anthropic/Ollama adapters (PR #12), capability evaluation (PR #13), and CLI provider selection (PR #14). This remains a **foundation milestone, not completion of the MVP**. The CLI now supports all three provider families; model discovery is being exposed through a common CLI command.
 
 The source-provenance assessment is documented in `docs/research/license-provenance-audit.md`. It is an engineering risk assessment, not legal clearance. Reuse of OpenClaude/Verboo source remains blocked unless qualified legal review approves it.
 

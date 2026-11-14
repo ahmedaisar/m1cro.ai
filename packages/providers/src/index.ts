@@ -6,6 +6,7 @@ export interface DiscoveredModelRecord { provider: string; id: string; displayNa
 export interface ModelProvider {
   readonly id: string;
   stream(request: ModelRequest): AsyncIterable<ModelEvent>;
+  discoverModels?(): Promise<DiscoveredModelRecord[]>;
 }
 
 type OpenAIMessage = {
@@ -300,6 +301,47 @@ export interface AnthropicProviderOptions {
 export class AnthropicProvider implements ModelProvider {
   readonly id = "anthropic";
   constructor(private readonly options: AnthropicProviderOptions = {}) {}
+
+  async discoverModels(): Promise<DiscoveredModelRecord[]> {
+    const fetcher = this.options.fetcher ?? fetch;
+    const baseUrl = (this.options.baseUrl ?? "https://api.anthropic.com").replace(/\/$/, "");
+    const headers = {
+      "anthropic-version": this.options.version ?? "2023-06-01",
+      ...(this.options.apiKey ? { "x-api-key": this.options.apiKey } : {}),
+      ...this.options.headers,
+    };
+    const discovered: DiscoveredModelRecord[] = [];
+    let cursor: string | undefined;
+    const seenCursors = new Set<string>();
+    for (let page = 0; page < 20; page++) {
+      const url = new URL(baseUrl + "/v1/models");
+      url.searchParams.set("limit", "1000");
+      if (cursor) url.searchParams.set("after_id", cursor);
+      const response = await fetcher(url, { headers });
+      if (!response.ok) throw new ProviderHttpError(response.status, await response.text());
+      const payload: unknown = await response.json();
+      if (!payload || typeof payload !== "object" || !Array.isArray((payload as { data?: unknown }).data)) {
+        throw new Error("Anthropic returned an invalid models response");
+      }
+      const body = payload as { data: Array<Record<string, unknown>>; has_more?: boolean; next_page?: string | null };
+      for (const item of body.data) {
+        if (typeof item.id !== "string" || !item.id.trim()) continue;
+        discovered.push({
+          provider: this.id,
+          id: item.id,
+          ...(typeof item.display_name === "string" ? { displayName: item.display_name } : {}),
+          capabilities: {},
+        });
+      }
+      if (!body.has_more) return discovered;
+      if (typeof body.next_page !== "string" || !body.next_page || seenCursors.has(body.next_page)) {
+        throw new Error("Anthropic model pagination returned an invalid or repeated cursor");
+      }
+      cursor = body.next_page;
+      seenCursors.add(cursor);
+    }
+    throw new Error("Anthropic model discovery exceeded the 20-page safety limit");
+  }
 
   async *stream(request: ModelRequest): AsyncIterable<ModelEvent> {
     const fetcher = this.options.fetcher ?? fetch;

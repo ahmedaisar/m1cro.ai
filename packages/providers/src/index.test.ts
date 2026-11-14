@@ -301,3 +301,34 @@ describe("OllamaProvider", () => {
     ]);
   });
 });
+
+
+describe("AnthropicProvider model discovery", () => {
+  it("preserves exact model IDs and follows pagination using the provider cursor", async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(Response.json({
+        data: [{ id: "claude-model-2026-01", display_name: "Claude Model" }],
+        has_more: true,
+        next_page: "page-cursor-1",
+      }))
+      .mockResolvedValueOnce(Response.json({
+        data: [{ id: "claude-model-2026-02", display_name: "Claude Model 2" }],
+        has_more: false,
+      }));
+    const provider = new AnthropicProvider({ baseUrl: "https://anthropic.test", apiKey: "secret", fetcher });
+    await expect(provider.discoverModels()).resolves.toEqual([
+      { provider: "anthropic", id: "claude-model-2026-01", displayName: "Claude Model", capabilities: {} },
+      { provider: "anthropic", id: "claude-model-2026-02", displayName: "Claude Model 2", capabilities: {} },
+    ]);
+    expect(String(fetcher.mock.calls[0]?.[0])).toContain("/v1/models?limit=1000");
+    expect(String(fetcher.mock.calls[1]?.[0])).toContain("after_id=page-cursor-1");
+    expect(new Headers(fetcher.mock.calls[0]?.[1]?.headers).get("x-api-key")).toBe("secret");
+  });
+
+  it("rejects repeated pagination cursors rather than looping", async () => {
+    const fetcher = vi.fn(async () => Response.json({ data: [], has_more: true, next_page: "same" }));
+    const provider = new AnthropicProvider({ fetcher });
+    await expect(provider.discoverModels()).rejects.toThrow("invalid or repeated cursor");
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+});
