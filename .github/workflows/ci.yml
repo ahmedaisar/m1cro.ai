@@ -1,5 +1,8 @@
 name: Lightweight CI
 on:
+  push:
+    branches:
+      - "feat/**"
   pull_request:
 permissions:
   contents: read
@@ -16,6 +19,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: pnpm
       - run: pnpm install --no-frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm test
