@@ -8,13 +8,15 @@ export class ProviderHttpError extends Error {
 }
 function toOpenAIMessages(messages:ModelMessage[]):OpenAIMessage[]{
  const result:OpenAIMessage[]=[];
- for(const message of messages){
+ for(let i=0;i<messages.length;i++){
+  const message=messages[i]!;
   if(message.role==="tool"){
    if(!message.toolCallId)throw new Error("Tool messages require a toolCallId");
    result.push({role:"tool",content:message.content,tool_call_id:message.toolCallId,...(message.name?{name:message.name}:{})});
-  }else{
-   result.push({role:message.role,content:message.content});
-  }
+  }else if(message.role==="assistant" && messages[i+1]?.role==="tool"){
+   // Older runtime messages did not preserve the originating call; keep assistant/tool chronology valid.
+   result.push({role:"assistant",content:message.content});
+  }else result.push({role:message.role,content:message.content});
  }
  return result;
 }
@@ -23,9 +25,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
  constructor(private readonly options:{baseUrl:string;apiKey?:string;headers?:Record<string,string>;fetcher?:typeof fetch;maxRetries?:number;retryBaseDelayMs?:number;maxRetryDelayMs?:number}){}
  async *stream(request:ModelRequest):AsyncIterable<ModelEvent>{
   const fetcher=this.options.fetcher??fetch;
-  const maxRetries=Math.max(0,this.options.maxRetries??2);
-  const baseDelay=Math.max(0,this.options.retryBaseDelayMs??250);
-  const maxDelay=Math.max(baseDelay,this.options.maxRetryDelayMs??4000);
+  const maxRetries=Math.max(0,this.options.maxRetries??2),baseDelay=Math.max(0,this.options.retryBaseDelayMs??250),maxDelay=Math.max(baseDelay,this.options.maxRetryDelayMs??4000);
   let response:Response|undefined;
   for(let attempt=0;attempt<=maxRetries;attempt++){
    request.signal.throwIfAborted();
@@ -36,12 +36,10 @@ export class OpenAICompatibleProvider implements ModelProvider {
      body:JSON.stringify({model:request.model,stream:true,messages:toOpenAIMessages(request.messages),tools:request.tools.map(t=>({type:"function",function:{name:t.name,description:t.description,parameters:t.inputSchema}}))})
     });
     if(response.ok)break;
-    const retryable=[408,409,425,429,500,502,503,504].includes(response.status);
-    const detail=await response.text().catch(()=>"");
+    const retryable=[408,409,425,429,500,502,503,504].includes(response.status),detail=await response.text().catch(()=>"");
     if(!retryable||attempt===maxRetries)throw new ProviderHttpError(response.status,detail);
     const retryAfter=response.headers.get("retry-after");
-    const retryMs=retryAfter&&/^\d+(\.\d+)?$/.test(retryAfter)?Math.min(maxDelay,Number(retryAfter)*1000):Math.min(maxDelay,baseDelay*2**attempt);
-    await delay(retryMs,request.signal);
+    await delay(retryAfter&&/^\d+(\.\d+)?$/.test(retryAfter)?Math.min(maxDelay,Number(retryAfter)*1000):Math.min(maxDelay,baseDelay*2**attempt),request.signal);
    }catch(error){
     if(request.signal.aborted)throw request.signal.reason??error;
     if(error instanceof ProviderHttpError)throw error;
@@ -51,50 +49,45 @@ export class OpenAICompatibleProvider implements ModelProvider {
   }
   if(!response?.ok)throw new Error("Provider request failed without a response");
   if(!response.body)throw new Error("Provider returned an empty response body");
-  const reader=response.body.getReader();const decoder=new TextDecoder();let buffer="";let doneSent=false;
+  const reader=response.body.getReader(),decoder=new TextDecoder();let buffer="",finished=false;
   const pending=new Map<number,PendingTool>();
-  const emitToolCalls=function*():Generator<ModelEvent>{
+  const emitTools=function*():Generator<ModelEvent>{
    for(const [index,tool] of [...pending.entries()].sort((a,b)=>a[0]-b[0])){
     if(!tool.name)throw new Error("Provider emitted a tool call without a function name");
-    let args:unknown;try{args=JSON.parse(tool.arguments||"{}");}catch{throw new Error(`Provider emitted malformed tool-call JSON for ${tool.name}`);}
-    yield {type:"tool_call",call:{id:tool.id||`call_${index}`,name:tool.name,input:args}};
+    let input:unknown;try{input=JSON.parse(tool.arguments||"{}");}catch{throw new Error(`Provider emitted malformed tool-call JSON for ${tool.name}`);}
+    yield {type:"tool_call",call:{id:tool.id||`call_${index}`,name:tool.name,input}};
    }
    pending.clear();
   };
-  const processLine=function*(line:string):Generator<ModelEvent>{
+  const parseLine=function*(line:string):Generator<ModelEvent>{
    const trimmed=line.trim();if(!trimmed.startsWith("data:"))return;
    const payload=trimmed.slice(5).trim();if(!payload||payload==="[DONE]")return;
    let chunk:ChatChunk;try{chunk=JSON.parse(payload) as ChatChunk;}catch{throw new Error("Provider emitted malformed SSE JSON");}
    if(chunk.error?.message)throw new Error(`Provider stream error: ${chunk.error.message}`);
-   const delta=chunk.choices?.[0]?.delta;
+   const choice=chunk.choices?.[0],delta=choice?.delta;
    if(delta?.content)yield {type:"text",text:delta.content};
    for(const part of delta?.tool_calls??[]){
-    const current=pending.get(part.index)??{id:part.id??"",arguments:""};
-    if(part.id)current.id=part.id;
-    if(part.function?.name)current.name=(current.name??"")+part.function.name;
-    if(part.function?.arguments)current.arguments+=part.function.arguments;
-    pending.set(part.index,current);
+    const call=pending.get(part.index)??{id:part.id??"",arguments:""};
+    if(part.id)call.id=part.id;
+    if(part.function?.name)call.name=(call.name??"")+part.function.name;
+    if(part.function?.arguments)call.arguments+=part.function.arguments;
+    pending.set(part.index,call);
    }
-   if(chunk.choices?.[0]?.finish_reason){
-    yield* emitToolCalls();
-   }
+   if(choice?.finish_reason)yield* emitTools();
   };
   try{
    while(true){
     request.signal.throwIfAborted();
-    const {value,done}=await reader.read();
-    if(done)break;
+    const {value,done}=await reader.read();if(done)break;
     buffer+=decoder.decode(value,{stream:true});
     const lines=buffer.split(/\r?\n/);buffer=lines.pop()??"";
-    for(const line of lines)yield* processLine(line);
+    for(const line of lines)yield* parseLine(line);
    }
-   buffer+=decoder.decode();
-   if(buffer.trim())yield* processLine(buffer);
-   if(pending.size)yield* emitToolCalls();
-   yield {type:"done"};
-   doneSent=true;
+   buffer+=decoder.decode();if(buffer.trim())yield* parseLine(buffer);
+   if(pending.size)yield* emitTools();
+   finished=true;yield {type:"done"};
   }finally{
-   if(!doneSent&&request.signal.aborted)await reader.cancel(request.signal.reason).catch(()=>undefined);
+   if(!finished)await reader.cancel(request.signal.reason).catch(()=>undefined);
    reader.releaseLock();
   }
  }
@@ -103,9 +96,9 @@ function delay(ms:number,signal:AbortSignal):Promise<void>{
  if(ms<=0){signal.throwIfAborted();return Promise.resolve();}
  return new Promise((resolve,reject)=>{
   signal.throwIfAborted();
+  const cleanup=()=>signal.removeEventListener("abort",onAbort);
   const timer=setTimeout(()=>{cleanup();resolve();},ms);
   const onAbort=()=>{clearTimeout(timer);cleanup();reject(signal.reason??new Error("Aborted"));};
-  const cleanup=()=>signal.removeEventListener("abort",onAbort);
   signal.addEventListener("abort",onAbort,{once:true});
  });
 }
