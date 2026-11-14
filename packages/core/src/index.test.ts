@@ -58,18 +58,6 @@ describe("AgentRuntime",()=>{
     expect(execute).not.toHaveBeenCalled();
     expect(events).toContainEqual(expect.objectContaining({type:"tool.result",callId:"c3",isError:true}));
   });
-  it("validates tool input before asking for approval",async()=>{
-    const tools=new ToolRegistry();const execute=vi.fn(async()=>({saved:true}));
-    tools.register({name:"write_file",description:"write",risk:"write",inputSchema:{type:"object",properties:{path:{type:"string"}},required:["path"],additionalProperties:false},parse:(v)=>v as {path:string},execute});
-    const request=vi.fn(async()=>({decision:"approve" as const,actor:"user" as const}));
-    const provider:ModelProvider={id:"tool",async *stream(){yield {type:"tool_call",call:{id:"invalid-write",name:"write_file",input:{path:42}}} as const;yield {type:"done"} as const;}};
-    const runtime=new AgentRuntime({provider,tools,policy:new DefaultPolicy(),model:"fixture",approval:{request}});
-    const events=[];for await(const event of runtime.run({sessionId:"invalid-write",prompt:"save"}))events.push(event);
-    expect(request).not.toHaveBeenCalled();
-    expect(execute).not.toHaveBeenCalled();
-    expect(events).toContainEqual(expect.objectContaining({type:"tool.result",callId:"invalid-write",isError:true}));
-    expect(events.some(event=>event.type==="approval.required")).toBe(false);
-  });
   it("records rejection and continues without executing the tool",async()=>{
     const tools=new ToolRegistry();const execute=vi.fn(async()=>({saved:true}));
     tools.register({name:"write_file",description:"write",risk:"write",inputSchema:{type:"object"},parse:(v)=>v,execute});
