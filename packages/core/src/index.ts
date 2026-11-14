@@ -70,7 +70,7 @@ export class AgentRuntime {
      }catch(error){
       const output={error:error instanceof Error?error.message:String(error)};
       const msg:ModelMessage={role:"tool",toolCallId:call.id,name:call.name,content:JSON.stringify(output)};
-      messages.push(msg);await record("message",msg);
+      messages.push(msg);
       yield {type:"tool.result",turnId,callId:call.id,output,isError:true};
       continue;
      }
