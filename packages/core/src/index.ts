@@ -25,6 +25,7 @@ export class AgentRuntime {
     if(["system","user","assistant","tool"].includes(String(candidate.role))&&typeof candidate.content==="string"){
      if(candidate.role==="tool"&&typeof candidate.toolCallId!=="string")continue;
      if(candidate.role==="assistant"&&candidate.toolCalls!==undefined&&!Array.isArray(candidate.toolCalls))continue;
+     if(candidate.role==="assistant"&&candidate.toolCalls?.some(call=>!call||typeof call.id!=="string"||typeof call.name!=="string"))continue;
      history.push(candidate as ModelMessage);
     }
    }
