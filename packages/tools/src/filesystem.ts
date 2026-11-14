@@ -49,11 +49,25 @@ export class Workspace {
  async writeFile(relativePath:string,content:string):Promise<{bytes:number}>{
   const bytes=Buffer.byteLength(content,"utf8");
   if(bytes>this.maxWriteBytes)throw new WorkspacePathError("Content exceeds maximum write size");
-  const resolved=await this.resolve(relativePath,{allowMissingLeaf:true});
-  const parent=path.dirname(resolved);
-  await fs.mkdir(parent,{recursive:true});
-  // Re-check the destination after parent creation to reject symlinked directories introduced in the meantime.
+  const candidate=path.resolve(this.root,relativePath);
+  if(candidate!==this.root&&!candidate.startsWith(this.root+path.sep))throw new WorkspacePathError("Path escapes workspace root");
+  const relativeParent=path.relative(this.root,path.dirname(candidate));
+  const parentParts=relativeParent?relativeParent.split(path.sep):[];
+  let current=this.root;
+  for(const part of parentParts){
+   current=path.join(current,part);
+   try{
+    const stat=await fs.lstat(current);
+    if(stat.isSymbolicLink()||!stat.isDirectory())throw new WorkspacePathError("Parent directory is not a safe workspace directory");
+   }catch(error){
+    if((error as NodeJS.ErrnoException).code!=="ENOENT")throw error;
+    await fs.mkdir(current,{mode:0o700});
+   }
+  }
+  const parent=path.dirname(candidate);
+  // Re-check all path components and the leaf after creating missing parents.
   const checked=await this.resolve(relativePath,{allowMissingLeaf:true});
+  const resolved=checked;
   if(checked!==resolved)throw new WorkspacePathError("Path changed during write");
   const temp=path.join(parent,`.m1cro-${randomUUID()}.tmp`);
   try{
