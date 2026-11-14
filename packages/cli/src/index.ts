@@ -1,6 +1,6 @@
 import {createInterface} from "node:readline/promises";
 import {stdin,stdout} from "node:process";
-import {mkdir,readFile,writeFile} from "node:fs/promises";
+import {mkdir,readFile} from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import {randomUUID} from "node:crypto";
@@ -100,7 +100,6 @@ export async function runCli(argv=process.argv.slice(2)):Promise<number>{
  const merged:Config={
   baseUrl:args.baseUrl??process.env.OPENAI_BASE_URL??config.baseUrl,
   model:args.model??process.env.M1CRO_MODEL??config.model,
-  ...((process.env.OPENAI_API_KEY??config.apiKey)?{apiKey:process.env.OPENAI_API_KEY??config.apiKey}:{})
  };
  const apiKey=process.env.OPENAI_API_KEY;
  if(!apiKey){
@@ -120,9 +119,8 @@ export async function runCli(argv=process.argv.slice(2)):Promise<number>{
  stdout.write(`m1cro.ai · model ${merged.model}\nWorkspace: ${path.resolve(args.workspace)}\nSession: ${sessionId}\nType /help for commands.\n\n`);
  if(args.prompt.length){
   const prompt=args.prompt.join(" ");
-  for await(const event of runtime.run({sessionId,prompt}))formatEvent(event);
-  stdout.write("\n");
-  if(!stdin.isTTY||!stdout.isTTY)return 0;
+  const exitCode=await runPrompt(runtime,sessionId,prompt);
+  if(!stdin.isTTY||!stdout.isTTY)return exitCode;
  }
  if(!stdin.isTTY||!stdout.isTTY)return 0;
  const rl=createInterface({input:stdin,output:stdout});
@@ -133,7 +131,7 @@ export async function runCli(argv=process.argv.slice(2)):Promise<number>{
    if(prompt==="/exit"||prompt==="/quit")break;
    if(prompt==="/help"){stdout.write("Enter a prompt. /exit or /quit closes m1cro. /help repeats this message.\n");continue;}
    if(prompt.startsWith("/")){stdout.write("Unknown command. Type /help.\n");continue;}
-   try{for await(const event of runtime.run({sessionId,prompt}))formatEvent(event);stdout.write("\n");}
+   try{await runPrompt(runtime,sessionId,prompt);}
    catch(error){stdout.write(`\n[error] ${error instanceof Error?error.message:String(error)}\n`);}
   }
  }finally{rl.close();}
