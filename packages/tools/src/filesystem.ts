@@ -86,7 +86,7 @@ export class Workspace {
    const child=path.join(resolved,entry.name);
    const stat=await fs.lstat(child);
    if(stat.isSymbolicLink())continue;
-   results.push({path:path.relative(this.root,child).split(path.sep).join("/"),type:entry.isDirectory()?"directory":"file",size:entry.isFile()?stat.size:0});
+   results.push({path:path.relative(this.root,child).split(path.sep).join("/"),type:entry.isDirectory()?("directory" as const):("file" as const),size:entry.isFile()?stat.size:0});
   }
   return results.sort((a,b)=>a.path.localeCompare(b.path));
  }
