@@ -16,13 +16,26 @@ export class AgentRuntime {
   const controller=new AbortController(),abort=()=>controller.abort(input.signal?.reason);
   input.signal?.addEventListener("abort",abort,{once:true});if(input.signal?.aborted)abort();
   const turnId=`turn_${randomUUID()}`;
+  const record=async(kind:"message"|"event",data:unknown)=>this.options.sessionStore?.append(input.sessionId,{id:randomUUID(),timestamp:new Date().toISOString(),kind,data});
+  const history:ModelMessage[]=[];
+  if(this.options.sessionStore){
+   for(const item of await this.options.sessionStore.read(input.sessionId)){
+    if(item.kind!=="message"||!item.data||typeof item.data!=="object")continue;
+    const candidate=item.data as Partial<ModelMessage>;
+    if(["system","user","assistant","tool"].includes(String(candidate.role))&&typeof candidate.content==="string"){
+     if(candidate.role==="tool"&&typeof candidate.toolCallId!=="string")continue;
+     if(candidate.role==="assistant"&&candidate.toolCalls!==undefined&&!Array.isArray(candidate.toolCalls))continue;
+     history.push(candidate as ModelMessage);
+    }
+   }
+  }
   const messages:ModelMessage[]=[
    ...(this.options.systemPrompt?[{role:"system" as const,content:this.options.systemPrompt}]:[]),
+   ...history.filter(message=>message.role!=="system"),
    {role:"user",content:input.prompt}
   ];
   const maxRounds=this.options.maxToolRounds??8;
   let terminal:RuntimeEvent={type:"turn.status",turnId,status:"completed"};
-  const record=async(kind:"message"|"event",data:unknown)=>this.options.sessionStore?.append(input.sessionId,{id:randomUUID(),timestamp:new Date().toISOString(),kind,data});
   try{
    await record("message",{role:"user",content:input.prompt});
    yield {type:"turn.status",turnId,status:"running"};
