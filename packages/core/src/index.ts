@@ -46,12 +46,9 @@ export class AgentRuntime {
             yield {type:"tool.call",turnId,callId:event.call.id,toolName:event.call.name,input:event.call.input};
           } else if(event.type==="done") sawDone=true;
         }
-        if(calls.length===0){
-          if(!sawDone&&round===maxRounds) throw new Error("Agent reached maximum tool-round limit");
-          break;
-        }
+        if(calls.length===0) break;
         if(round===maxRounds) throw new Error("Agent reached maximum tool-round limit");
-        messages.push({role:"assistant",content:`Requested ${calls.length} tool call(s).`});
+        messages.push({role:"assistant",content:"",toolCalls:calls});
         for(const call of calls){
           controller.signal.throwIfAborted();
           const tool=this.options.tools.get(call.name);
