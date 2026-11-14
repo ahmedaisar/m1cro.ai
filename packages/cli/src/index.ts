@@ -6,13 +6,17 @@ import os from "node:os";
 import {randomUUID} from "node:crypto";
 import {AgentRuntime,type ApprovalController} from "@m1cro/core";
 import {DefaultPolicy} from "@m1cro/policy";
-import {OpenAICompatibleProvider} from "@m1cro/providers";
+import {AnthropicProvider,OpenAICompatibleProvider,OllamaProvider,type ModelProvider} from "@m1cro/providers";
 import {JsonlSessionStore} from "@m1cro/sessions";
 import {registerFilesystemTools,ToolRegistry,Workspace} from "@m1cro/tools";
 
-type Config={baseUrl:string;model:string};
-type Args={prompt:string[];workspace:string;session?:string;model?:string;baseUrl?:string;help:boolean};
-const defaultConfig:Config={baseUrl:"https://api.openai.com/v1",model:"gpt-4o-mini"};
+type ProviderKind="openai-compatible"|"anthropic"|"ollama";
+type Config={provider:ProviderKind;baseUrl:string;model:string};
+type Args={prompt:string[];workspace:string;session?:string;model?:string;baseUrl?:string;provider?:ProviderKind;help:boolean};
+const providerDefaults:Record<ProviderKind,{baseUrl:string;model:string}>={ "openai-compatible":{baseUrl:"https://api.openai.com/v1",model:"gpt-4o-mini"}, anthropic:{baseUrl:"https://api.anthropic.com",model:"claude-3-5-haiku-latest"}, ollama:{baseUrl:"http://127.0.0.1:11434",model:"llama3.2"} };
+const defaultConfig:Config={provider:"openai-compatible",...providerDefaults["openai-compatible"]};
+const isProviderKind=(value:string):value is ProviderKind=>value==="openai-compatible"||value==="anthropic"||value==="ollama";
+export function createProvider(provider:ProviderKind,baseUrl:string,apiKey?:string):ModelProvider{ if(provider==="anthropic")return new AnthropicProvider({baseUrl,...(apiKey?{apiKey}:{})}); if(provider==="ollama")return new OllamaProvider({baseUrl}); return new OpenAICompatibleProvider({baseUrl,...(apiKey?{apiKey}:{})}); }
 function parseArgs(argv:string[]):Args{
  const parsed:Args={prompt:[],workspace:process.cwd(),help:false};
  for(let i=0;i<argv.length;i++){
@@ -22,6 +26,7 @@ function parseArgs(argv:string[]):Args{
   else if(arg==="--session"){const value=argv[++i];if(value===undefined)throw new Error("--session requires an ID");parsed.session=value;}
   else if(arg==="--model"){const value=argv[++i];if(value===undefined||!value.trim())throw new Error("--model requires a model ID");parsed.model=value;}
   else if(arg==="--base-url"){const value=argv[++i];if(value===undefined||!value.trim())throw new Error("--base-url requires a URL");parsed.baseUrl=value;}
+  else if(arg==="--provider"){const value=argv[++i];if(value===undefined||!isProviderKind(value))throw new Error("--provider must be openai-compatible, anthropic or ollama");parsed.provider=value;}
   else if(arg.startsWith("-"))throw new Error(`Unknown option: ${arg}`);
   else parsed.prompt.push(arg);
  }
@@ -38,14 +43,18 @@ Usage:
 Options:
   --workspace <dir>  Workspace root (default: current directory)
   --session <id>     Resume an existing local session ID
-  --model <id>       OpenAI-compatible model identifier
-  --base-url <url>   API base URL (default: OpenAI)
+  --provider <id>    openai-compatible, anthropic or ollama
+  --model <id>       Exact provider model identifier
+  --base-url <url>   Provider API base URL
   -h, --help         Show this help
 
 Configuration:
-  OPENAI_API_KEY     Provider API key (required; never stored in local config)
-  M1CRO_MODEL        Default model override
-  OPENAI_BASE_URL    Default API base URL override
+  OPENAI_API_KEY     OpenAI-compatible provider key
+  ANTHROPIC_API_KEY  Anthropic provider key
+  M1CRO_PROVIDER     Default provider (openai-compatible)
+  M1CRO_MODEL        Exact provider model ID override
+  M1CRO_BASE_URL     Generic provider base URL override
+  OPENAI_BASE_URL / ANTHROPIC_BASE_URL / OLLAMA_BASE_URL  Provider-specific URL overrides
 
 Interactive commands:
   /help, /exit, /quit
@@ -61,7 +70,9 @@ async function loadConfig():Promise<Config>{
   if(typeof parsed.apiKey==="string"&&parsed.apiKey.length>0){
    throw new Error("Plaintext API keys in ~/.m1cro/config.json are not supported. Remove the apiKey field and set OPENAI_API_KEY in your environment.");
   }
-  return {baseUrl:parsed.baseUrl??defaultConfig.baseUrl,model:parsed.model??defaultConfig.model};
+  const provider=parsed.provider??defaultConfig.provider;
+  if(!isProviderKind(provider))throw new Error("Unsupported provider in ~/.m1cro/config.json");
+  return {provider,baseUrl:parsed.baseUrl??providerDefaults[provider].baseUrl,model:parsed.model??providerDefaults[provider].model};
  }catch(error){
   if((error as NodeJS.ErrnoException).code==="ENOENT")return defaultConfig;
   if(error instanceof Error&&error.message.startsWith("Plaintext API keys"))throw error;
@@ -107,13 +118,18 @@ export async function runCli(argv=process.argv.slice(2)):Promise<number>{
  if(args.help){stdout.write(help());return 0;}
  let config:Config;
  try{config=await loadConfig();}catch(error){console.error(error instanceof Error?error.message:String(error));return 2;}
+ const provider=args.provider??(process.env.M1CRO_PROVIDER&&isProviderKind(process.env.M1CRO_PROVIDER)?process.env.M1CRO_PROVIDER:config.provider);
+ const providerEnvUrl=provider==="anthropic"?process.env.ANTHROPIC_BASE_URL:provider==="ollama"?process.env.OLLAMA_BASE_URL:process.env.OPENAI_BASE_URL;
+ const defaults=providerDefaults[provider];
  const merged:Config={
-  baseUrl:args.baseUrl??process.env.OPENAI_BASE_URL??config.baseUrl,
-  model:args.model??process.env.M1CRO_MODEL??config.model,
+  provider,
+  baseUrl:args.baseUrl??process.env.M1CRO_BASE_URL??providerEnvUrl??(config.provider===provider?config.baseUrl:defaults.baseUrl),
+  model:args.model??process.env.M1CRO_MODEL??(config.provider===provider?config.model:defaults.model),
  };
- const apiKey=process.env.OPENAI_API_KEY;
- if(!apiKey){
-  console.error("Set OPENAI_API_KEY in your environment. m1cro does not prompt for or persist plaintext API keys.");
+ const apiKey=provider==="anthropic"?process.env.ANTHROPIC_API_KEY:provider==="ollama"?undefined:process.env.OPENAI_API_KEY;
+ if(provider!=="ollama"&&!apiKey){
+  const variable=provider==="anthropic"?"ANTHROPIC_API_KEY":"OPENAI_API_KEY";
+  console.error(`Set ${variable} in your environment. m1cro does not prompt for or persist plaintext API keys.`);
   return 2;
  }
  if(!/^https?:\/\//i.test(merged.baseUrl)){console.error("Provider base URL must use http or https.");return 2;}
@@ -130,10 +146,10 @@ export async function runCli(argv=process.argv.slice(2)):Promise<number>{
  const sessionStore=new JsonlSessionStore(id=>path.join(sessions,`${id}.jsonl`));
  const tools=new ToolRegistry();
  registerFilesystemTools(tools,new Workspace({root:path.resolve(args.workspace)}));
- const provider=new OpenAICompatibleProvider({baseUrl:merged.baseUrl,apiKey});
+ const modelProvider=createProvider(merged.provider,merged.baseUrl,apiKey);
  const approval:ApprovalController={request:approvalPrompt};
- const runtime=new AgentRuntime({provider,tools,policy:new DefaultPolicy(),model:merged.model,approval,sessionStore});
- stdout.write(`m1cro.ai · model ${merged.model}\nWorkspace: ${path.resolve(args.workspace)}\nSession: ${sessionId}\nType /help for commands.\n\n`);
+ const runtime=new AgentRuntime({provider:modelProvider,tools,policy:new DefaultPolicy(),model:merged.model,approval,sessionStore});
+ stdout.write(`m1cro.ai · ${merged.provider} · model ${merged.model}\nWorkspace: ${path.resolve(args.workspace)}\nSession: ${sessionId}\nType /help for commands.\n\n`);
  if(args.prompt.length){
   const prompt=args.prompt.join(" ");
   const exitCode=await runPrompt(runtime,sessionId,prompt);
