@@ -71,6 +71,7 @@ export class Workspace {
    if(entry.isSymbolicLink())continue;
    const child=path.join(resolved,entry.name);
    const stat=await fs.lstat(child);
+   if(stat.isSymbolicLink())continue;
    results.push({path:path.relative(this.root,child).split(path.sep).join("/"),type:entry.isDirectory()?"directory":"file",size:entry.isFile()?stat.size:0});
   }
   return results.sort((a,b)=>a.path.localeCompare(b.path));
@@ -86,11 +87,12 @@ export class Workspace {
     if(entry.name==="node_modules"||entry.name===".git"||entry.name==="dist")continue;
     if(entry.isSymbolicLink())continue;
     const full=path.join(dir,entry.name);
-    if(entry.isDirectory()){await walk(full);continue;}
-    if(!entry.isFile())continue;
+    const stat=await fs.lstat(full);
+    if(stat.isSymbolicLink())continue;
     const rel=path.relative(this.root,full).split(path.sep).join("/");
     if(options.glob&&!globToRegExp(options.glob).test(rel))continue;
-    const stat=await fs.stat(full);if(stat.size>this.maxReadBytes)continue;
+    if(stat.isDirectory()){await walk(full);continue;}
+    if(!stat.isFile()||stat.size>this.maxReadBytes)continue;
     const text=await fs.readFile(full,"utf8");
     if(text.includes("\0"))continue;
     const lines=text.split(/\r?\n/);
