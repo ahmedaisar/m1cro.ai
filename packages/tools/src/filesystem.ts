@@ -71,7 +71,6 @@ export class Workspace {
   // Re-check all path components and the leaf after creating missing parents.
   const checked=await this.resolve(relativePath,{allowMissingLeaf:true});
   if(checked!==resolved)throw new WorkspacePathError("Path changed during write");
-  if(checked!==resolved)throw new WorkspacePathError("Path changed during write");
   const temp=path.join(parent,`.m1cro-${randomUUID()}.tmp`);
   try{
    const handle=await fs.open(temp,"wx",0o600);
