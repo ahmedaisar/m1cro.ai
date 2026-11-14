@@ -61,6 +61,15 @@ export class AgentRuntime {
      if(!tool){
       const output={error:`Unknown tool: ${call.name}`};const msg:ModelMessage={role:"tool",toolCallId:call.id,name:call.name,content:JSON.stringify(output)};messages.push(msg);await record("message",msg);yield {type:"tool.result",turnId,callId:call.id,output,isError:true};continue;
      }
+     try{
+      this.options.tools.validateInput(call.name,call.input);
+     }catch(error){
+      const output={error:error instanceof Error?error.message:String(error)};
+      const msg:ModelMessage={role:"tool",toolCallId:call.id,name:call.name,content:JSON.stringify(output)};
+      messages.push(msg);await record("message",msg);
+      yield {type:"tool.result",turnId,callId:call.id,output,isError:true};
+      continue;
+     }
      const decision=this.options.policy.evaluate({toolName:tool.name,risk:tool.risk,input:call.input});
      if(decision==="deny"){
       const output={error:"Tool execution denied by policy"};const msg:ModelMessage={role:"tool",toolCallId:call.id,name:call.name,content:JSON.stringify(output)};messages.push(msg);await record("message",msg);yield {type:"tool.result",turnId,callId:call.id,output,isError:true};continue;
@@ -84,7 +93,6 @@ export class AgentRuntime {
       await record("event",resolved);yield resolved;yield {type:"turn.status",turnId,status:"running"};
      }
      try{
-      this.options.tools.validateInput(call.name,call.input);
       const output=await tool.execute(tool.parse(call.input),controller.signal);
       const msg:ModelMessage={role:"tool",toolCallId:call.id,name:call.name,content:JSON.stringify(output)};messages.push(msg);await record("message",msg);
       yield {type:"tool.result",turnId,callId:call.id,output,isError:false};
