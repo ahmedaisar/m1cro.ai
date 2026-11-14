@@ -82,7 +82,7 @@ function formatEvent(event:Awaited<ReturnType<AgentRuntime["run"]>> extends Asyn
  else if(event.type==="tool.result")stdout.write(`\n[tool result] ${event.isError?"error":"ok"}\n`);
  else if(event.type==="turn.status"&&(event.status==="failed"||event.status==="cancelled"))stdout.write(`\n[turn ${event.status}] ${event.reason??""}\n`);
 }
-async function runPrompt(runtime:AgentRuntime,sessionId:string,prompt:string):Promise<number>{
+export async function runPrompt(runtime:AgentRuntime,sessionId:string,prompt:string):Promise<number>{
  let exitCode=0;
  for await(const event of runtime.run({sessionId,prompt})){
   formatEvent(event);
