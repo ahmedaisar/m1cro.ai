@@ -35,11 +35,16 @@ export class JsonlSessionStore implements SessionStore {
  async read(sessionId:string):Promise<SessionRecord[]>{
   const file=this.pathFor(sessionId);
   try{
+   const directory=dirname(file);
+   const dirStat=await lstat(directory);
+   if(dirStat.isSymbolicLink()||!dirStat.isDirectory())throw new Error("Session directory must be a real directory");
+   await chmod(directory,0o700);
    const flags=constants.O_RDONLY|(constants.O_NOFOLLOW??0);
    const handle=await open(file,flags);
    try{
     const stat=await handle.stat();
     if(!stat.isFile())throw new Error("Session file must be a regular file");
+    await handle.chmod(0o600);
     const raw=await handle.readFile("utf8");
     return raw.split("\n").filter(Boolean).map(line=>JSON.parse(line) as SessionRecord);
    }finally{await handle.close();}
