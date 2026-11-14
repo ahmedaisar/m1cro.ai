@@ -1,0 +1,1 @@
+{"extends":"../../tsconfig.base.json","compilerOptions":{"rootDir":"src","outDir":"dist","composite":true},"references":[{"path":"../core"},{"path":"../policy"},{"path":"../protocol"},{"path":"../providers"},{"path":"../sessions"},{"path":"../tools"}],"include":["src/**/*.ts","src/**/*.test.ts"]}

@@ -14,9 +14,9 @@ m1cro.ai is a model-agnostic AI engineering platform. The first release focuses 
 
 ## Current implementation
 
-The runtime foundation is under active development. It currently contains provider-neutral event contracts, a conservative permission policy, a host-injected tool registry, an OpenAI-compatible streaming adapter, append-only JSONL session persistence and a bounded agent loop.
+The runtime foundation is under active development. It includes provider-neutral event contracts, a conservative permission policy, a host-injected tool registry, an OpenAI-compatible streaming adapter, append-only JSONL session persistence, a bounded agent loop, confined workspace filesystem tools and a local CLI.
 
-No OpenClaude or Verboo source code is imported. The approval handshake, robust provider streaming, confined workspace tools and interactive CLI are being delivered as separate reviewable slices.
+No OpenClaude or Verboo source code is imported.
 
 ## Workspace packages
 
@@ -28,7 +28,7 @@ No OpenClaude or Verboo source code is imported. The approval handshake, robust 
 - `@m1cro/core` — shared agent runtime
 - `@m1cro/cli` — local command-line client
 
-## Development
+## Getting started
 
 Requirements: Node.js 22+ and pnpm 10+.
 
@@ -39,13 +39,22 @@ pnpm test
 pnpm build
 ```
 
+## CLI quick start
+
+```bash
+export OPENAI_API_KEY="your-api-key"
+pnpm cli
+```
+
+You can also send one prompt with `pnpm cli -- "Explain this codebase"`. Options include `--workspace <dir>`, `--model <id>`, `--base-url <url>` and `--session <id>`. Local session history lives under `~/.m1cro`; the CLI currently connects to an OpenAI-compatible endpoint.
+
 ## Security defaults
 
-- Only tools explicitly registered by the host can execute.
-- The default policy automatically allows read-only tools and requires explicit user approval for other risk classes.
-- No arbitrary shell, browser or network tools are enabled by default.
+- The CLI registers workspace-scoped filesystem tools only; no shell, browser or arbitrary network tool is enabled.
+- Reads are automatically allowed; writes require explicit interactive approval.
+- Approval prompts identify the exact tool, risk and input being approved.
+- API keys are read from `OPENAI_API_KEY`; the CLI does not prompt for or persist plaintext keys.
 - BYOK/local operation does not require an m1cro account.
-- Provider credentials are supplied through environment variables; plaintext API keys are not stored in the m1cro config file.
 
 ## Product principles
 
