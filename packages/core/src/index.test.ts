@@ -62,7 +62,8 @@ describe("AgentRuntime",()=>{
     const tools=new ToolRegistry();const execute=vi.fn(async()=>({saved:true}));
     tools.register({name:"write_file",description:"write",risk:"write",inputSchema:{type:"object",properties:{path:{type:"string"}},required:["path"],additionalProperties:false},parse:(v)=>v as {path:string},execute});
     const request=vi.fn(async()=>({decision:"approve" as const,actor:"user" as const}));
-    const provider:ModelProvider={id:"tool",async *stream(){yield {type:"tool_call",call:{id:"invalid-write",name:"write_file",input:{path:42}}} as const;yield {type:"done"} as const;}};
+    let calls=0;
+    const provider:ModelProvider={id:"tool",async *stream(){if(calls++===0)yield {type:"tool_call",call:{id:"invalid-write",name:"write_file",input:{path:42}}} as const;else yield {type:"text",text:"invalid input handled"} as const;yield {type:"done"} as const;}};
     const runtime=new AgentRuntime({provider,tools,policy:new DefaultPolicy(),model:"fixture",approval:{request}});
     const events=[];for await(const event of runtime.run({sessionId:"invalid-write",prompt:"save"}))events.push(event);
     expect(request).not.toHaveBeenCalled();
