@@ -130,6 +130,8 @@ export class OpenAICompatibleProvider implements ModelProvider {
     const decoder = new TextDecoder();
     let buffer = "";
     let finished = false;
+    let sawDoneMarker = false;
+    let sawFinishReason = false;
     const pending = new Map<number, PendingTool>();
 
     const emitTools = function* (): Generator<ModelEvent> {
@@ -153,7 +155,11 @@ export class OpenAICompatibleProvider implements ModelProvider {
       const trimmed = line.trim();
       if (!trimmed.startsWith("data:")) return;
       const payload = trimmed.slice(5).trim();
-      if (!payload || payload === "[DONE]") return;
+      if (!payload) return;
+      if (payload === "[DONE]") {
+        sawDoneMarker = true;
+        return;
+      }
 
       let chunk: ChatChunk;
       try {
@@ -174,7 +180,10 @@ export class OpenAICompatibleProvider implements ModelProvider {
         if (part.function?.arguments) current.arguments += part.function.arguments;
         pending.set(part.index, current);
       }
-      if (choice?.finish_reason) yield* emitTools();
+      if (choice?.finish_reason) {
+        sawFinishReason = true;
+        yield* emitTools();
+      }
     };
 
     let abortListener: (() => void) | undefined;
@@ -200,6 +209,9 @@ export class OpenAICompatibleProvider implements ModelProvider {
       buffer += decoder.decode();
       if (buffer.trim()) yield* parseLine(buffer);
       if (pending.size) yield* emitTools();
+      if (!sawDoneMarker && !sawFinishReason) {
+        throw new Error("Provider stream ended before a terminal marker");
+      }
       finished = true;
       yield { type: "done" };
     } finally {
