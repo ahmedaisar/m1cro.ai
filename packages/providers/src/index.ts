@@ -80,18 +80,27 @@ export class OpenAICompatibleProvider implements ModelProvider {
    }
    if(choice?.finish_reason)yield* emitTools();
   };
+  let abortListener:(()=>void)|undefined;
   try{
+   const onAbort=()=>{
+    void reader.cancel(request.signal.reason).catch(()=>undefined);
+   };
+   abortListener=onAbort;
+   request.signal.addEventListener("abort",onAbort,{once:true});
    while(true){
     request.signal.throwIfAborted();
-    const {value,done}=await reader.read();if(done)break;
+    const {value,done}=await reader.read();
+    request.signal.throwIfAborted();
+    if(done)break;
     buffer+=decoder.decode(value,{stream:true});
-    const lines=buffer.split(/\r?\n/);buffer=lines.pop()??"";
+    const lines=buffer.split(/\\r?\\n/);buffer=lines.pop()??"";
     for(const line of lines)yield* parseLine(line);
    }
    buffer+=decoder.decode();if(buffer.trim())yield* parseLine(buffer);
    if(pending.size)yield* emitTools();
    finished=true;yield {type:"done"};
   }finally{
+   if(abortListener)request.signal.removeEventListener("abort",abortListener);
    if(!finished)await reader.cancel(request.signal.reason).catch(()=>undefined);
    reader.releaseLock();
   }
