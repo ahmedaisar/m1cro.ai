@@ -12,16 +12,17 @@ import {registerFilesystemTools,ToolRegistry,Workspace} from "@m1cro/tools";
 
 type ProviderKind="openai-compatible"|"anthropic"|"ollama";
 type Config={provider:ProviderKind;baseUrl:string;model:string};
-type Args={prompt:string[];workspace:string;session?:string;model?:string;baseUrl?:string;provider?:ProviderKind;help:boolean};
+type Args={prompt:string[];workspace:string;session?:string;model?:string;baseUrl?:string;provider?:ProviderKind;listModels:boolean;help:boolean};
 const providerDefaults:Record<ProviderKind,{baseUrl:string;model:string}>={ "openai-compatible":{baseUrl:"https://api.openai.com/v1",model:"gpt-4o-mini"}, anthropic:{baseUrl:"https://api.anthropic.com",model:"claude-3-5-haiku-latest"}, ollama:{baseUrl:"http://127.0.0.1:11434",model:"llama3.2"} };
 const defaultConfig:Config={provider:"openai-compatible",...providerDefaults["openai-compatible"]};
 const isProviderKind=(value:string):value is ProviderKind=>value==="openai-compatible"||value==="anthropic"||value==="ollama";
 export function createProvider(provider:ProviderKind,baseUrl:string,apiKey?:string):ModelProvider{ if(provider==="anthropic")return new AnthropicProvider({baseUrl,...(apiKey?{apiKey}:{})}); if(provider==="ollama")return new OllamaProvider({baseUrl}); return new OpenAICompatibleProvider({baseUrl,...(apiKey?{apiKey}:{})}); }
 function parseArgs(argv:string[]):Args{
- const parsed:Args={prompt:[],workspace:process.cwd(),help:false};
+ const parsed:Args={prompt:[],workspace:process.cwd(),listModels:false,help:false};
  for(let i=0;i<argv.length;i++){
   const arg=argv[i]!;
   if(arg==="--help"||arg==="-h")parsed.help=true;
+  else if(arg==="--list-models")parsed.listModels=true;
   else if(arg==="--workspace"){const value=argv[++i];if(value===undefined||!value.trim())throw new Error("--workspace requires a directory");parsed.workspace=value;}
   else if(arg==="--session"){const value=argv[++i];if(value===undefined)throw new Error("--session requires an ID");parsed.session=value;}
   else if(arg==="--model"){const value=argv[++i];if(value===undefined||!value.trim())throw new Error("--model requires a model ID");parsed.model=value;}
@@ -46,6 +47,7 @@ Options:
   --provider <id>    openai-compatible, anthropic or ollama
   --model <id>       Exact provider model identifier
   --base-url <url>   Provider API base URL
+  --list-models      List models exposed by the selected provider
   -h, --help         Show this help
 
 Configuration:
@@ -147,6 +149,15 @@ export async function runCli(argv=process.argv.slice(2)):Promise<number>{
  const tools=new ToolRegistry();
  registerFilesystemTools(tools,new Workspace({root:path.resolve(args.workspace)}));
  const modelProvider=createProvider(merged.provider,merged.baseUrl,apiKey);
+ if(args.listModels){
+  if(!modelProvider.discoverModels){console.error("The selected provider does not support model discovery.");return 2;}
+  try{
+   const models=await modelProvider.discoverModels();
+   if(models.length===0)stdout.write("No models were returned by the provider.\\n");
+   else for(const model of models)stdout.write(model.id+"\\t"+(model.displayName??"")+(model.contextWindow?"\\t"+model.contextWindow+" context":"")+"\\n");
+   return 0;
+  }catch(error){console.error(error instanceof Error?error.message:String(error));return 1;}
+ }
  const approval:ApprovalController={request:approvalPrompt};
  const runtime=new AgentRuntime({provider:modelProvider,tools,policy:new DefaultPolicy(),model:merged.model,approval,sessionStore});
  stdout.write(`m1cro.ai · ${merged.provider} · model ${merged.model}\nWorkspace: ${path.resolve(args.workspace)}\nSession: ${sessionId}\nType /help for commands.\n\n`);
