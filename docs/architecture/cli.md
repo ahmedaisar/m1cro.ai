@@ -5,7 +5,7 @@ The CLI provides a local terminal client over the shared m1cro runtime. It is di
 ## Entry points and configuration
 - `m1cro [options] [prompt...]` starts an interactive session; a prompt argument runs one turn and exits.
 - `--workspace`, `--session`, `--model`, `--base-url` configure the current invocation.
-- `OPENAI_API_KEY` is required from the environment; `M1CRO_MODEL` and `OPENAI_BASE_URL` override local configuration.
+- `OPENAI_API_KEY` is required from the environment; `M1CRO_MODEL` and `OPENAI_BASE_URL` override non-secret local configuration.
 - Non-secret configuration is stored in `~/.m1cro/config.json`; the CLI creates this file with mode `0600` in a directory with mode `0700`. Plaintext `apiKey` values are rejected.
 - JSONL sessions are stored beneath `~/.m1cro/sessions`; session IDs are constrained to a safe character set before file resolution.
 
