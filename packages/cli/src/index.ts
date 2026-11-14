@@ -98,7 +98,7 @@ export async function runPrompt(runtime:AgentRuntime,sessionId:string,prompt:str
   formatEvent(event);
   if(event.type==="turn.status"&&(event.status==="failed"||event.status==="cancelled"))exitCode=1;
  }
- stdout.write("\\n");
+ stdout.write("\n");
  return exitCode;
 }
 export async function runCli(argv=process.argv.slice(2)):Promise<number>{
