@@ -5,8 +5,8 @@ The CLI provides a local terminal client over the shared m1cro runtime. It is di
 ## Entry points and configuration
 - `m1cro [options] [prompt...]` starts an interactive session; a prompt argument runs one turn and exits.
 - `--workspace`, `--session`, `--model`, `--base-url` configure the current invocation.
-- `OPENAI_API_KEY`, `M1CRO_MODEL`, and `OPENAI_BASE_URL` override local configuration.
-- Optional configuration is stored in `~/.m1cro/config.json`; the CLI creates this file with mode `0600` in a directory with mode `0700`.
+- `OPENAI_API_KEY` is required from the environment; `M1CRO_MODEL` and `OPENAI_BASE_URL` override local configuration.
+- Non-secret configuration is stored in `~/.m1cro/config.json`; the CLI creates this file with mode `0600` in a directory with mode `0700`. Plaintext `apiKey` values are rejected.
 - JSONL sessions are stored beneath `~/.m1cro/sessions`; session IDs are constrained to a safe character set before file resolution.
 
 ## Turn lifecycle
@@ -25,5 +25,5 @@ The CLI provides a local terminal client over the shared m1cro runtime. It is di
 ## Deliberate limits
 - Provider support in the CLI is currently the OpenAI-compatible adapter; additional providers are additive.
 - The CLI is interactive; non-TTY use is limited to a one-shot prompt and rejects pending approval because no person can answer.
-- API key setup is best done via `OPENAI_API_KEY`; first-run interactive entry is terminal-visible and saved locally for convenience.
+- API keys are supplied only through `OPENAI_API_KEY` in this slice; interactive secret entry and plaintext config storage are intentionally disabled until an OS credential-store adapter exists.
 - No shell/process execution, remote sandbox, web workspace, account system or hosted inference is provided by this slice.
