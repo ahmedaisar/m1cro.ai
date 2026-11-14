@@ -2,22 +2,31 @@
 
 **The AI Engineering Workspace** — One engineering workspace. Any model. Multiple agents.
 
-m1cro.ai is a model-agnostic AI engineering platform. The initial implementation is an independently authored, local-first TypeScript agent runtime. BYOK and local inference are first-class; hosted inference, workspace clients and remote sandboxes follow behind stable runtime and security contracts.
+m1cro.ai is a model-agnostic AI engineering platform. The first release focuses on a trusted, local-first coding-agent runtime with BYOK and local model support. Hosted inference, the web workspace, browser/editor clients and remote sandboxes follow behind stable runtime and security contracts.
 
-## Repository status
+## Project documents
 
-The runtime foundation is under active development. It currently contains provider-neutral event contracts, a conservative permission policy, an injected tool registry, a minimal OpenAI-compatible streaming adapter, append-only JSONL session persistence and a bounded agent loop.
+- [Product Requirements Document (EARS)](docs/PRD.md)
+- [Verboo / OpenClaude research log](docs/research/verboo-openclaude.md)
+- [Architecture decision records](docs/architecture/ADRs.md)
+- [Implementation roadmap](docs/ROADMAP.md)
+- [License and provenance gate](docs/research/license-provenance-audit.md)
+
+## Current implementation
+
+The runtime foundation is under active development. It includes provider-neutral event contracts, a conservative permission policy, a host-injected tool registry, an OpenAI-compatible streaming adapter, append-only JSONL session persistence, a bounded agent loop, confined workspace filesystem tools and a local CLI.
 
 No OpenClaude or Verboo source code is imported.
 
-## Workspace
+## Workspace packages
 
-- `@m1cro/protocol` — model request and runtime event contracts
+- `@m1cro/protocol` — provider-neutral model requests and runtime event contracts
 - `@m1cro/policy` — deterministic risk policy
-- `@m1cro/tools` — typed host-injected tool registry
+- `@m1cro/tools` — typed host-injected tool registry and workspace tools
 - `@m1cro/providers` — provider adapters
 - `@m1cro/sessions` — local session persistence
-- `@m1cro/core` — agent runtime
+- `@m1cro/core` — shared agent runtime
+- `@m1cro/cli` — local command-line client
 
 ## Getting started
 
@@ -33,29 +42,25 @@ pnpm build
 ## CLI quick start
 
 ```bash
-pnpm install
 export OPENAI_API_KEY="your-api-key"
 pnpm cli
 ```
 
-You can also send one prompt with `pnpm cli -- "Explain this codebase"`. Options include `--workspace <dir>`, `--model <id>`, `--base-url <url>` and `--session <id>`. Local configuration and session history live under `~/.m1cro`. The CLI currently connects to an OpenAI-compatible endpoint.
+You can also send one prompt with `pnpm cli -- "Explain this codebase"`. Options include `--workspace <dir>`, `--model <id>`, `--base-url <url>` and `--session <id>`. Local session history lives under `~/.m1cro`; the CLI currently connects to an OpenAI-compatible endpoint.
 
 ## Security defaults
 
-- The CLI registers workspace-scoped filesystem tools only; there is no shell, browser or arbitrary network tool.
+- The CLI registers workspace-scoped filesystem tools only; no shell, browser or arbitrary network tool is enabled.
 - Reads are automatically allowed; writes require explicit interactive approval.
 - Approval prompts identify the exact tool, risk and input being approved.
-- Session/config directories use restrictive permissions; API keys are never printed.
+- API keys are read from `OPENAI_API_KEY`; the CLI does not prompt for or persist plaintext keys.
 - BYOK/local operation does not require an m1cro account.
 
-## Product documents
+## Product principles
 
-- [Product requirements](docs/PRD.md)
-- [Research log](docs/research/verboo-openclaude.md)
-- [License and provenance gate](docs/research/license-provenance-audit.md)
-- [Architecture decisions](docs/architecture/ADRs.md)
-- [Runtime foundation notes](docs/architecture/runtime-foundation.md)
-- [Roadmap](docs/ROADMAP.md)
-
-
-<!-- PR #6 integration check refresh: local CLI package is under packages/cli. -->
+- Model freedom and local/BYOK independence
+- Capability-aware routing
+- Safe execution and explicit permissions
+- One runtime across clients
+- Portable sessions, skills and integrations
+- Fast agent iteration with production-grade release checks
