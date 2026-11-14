@@ -75,12 +75,12 @@ export class AgentRuntime {
       if(approval.actor!=="user")throw new Error("Approval actor must be the user");
       if(approval.decision!=="approve"){
        const reason=approval.reason??"Rejected by user";
-       const resolved={type:"approval.resolved",turnId,callId:call.id,decision:"rejected",actor:"user",reason};
+       const resolved:RuntimeEvent={type:"approval.resolved",turnId,callId:call.id,decision:"rejected",actor:"user",reason};
        await record("event",resolved);yield resolved;
        const output={error:`Tool approval rejected: ${reason}`};const msg:ModelMessage={role:"tool",toolCallId:call.id,name:call.name,content:JSON.stringify(output)};messages.push(msg);await record("message",msg);
        yield {type:"tool.result",turnId,callId:call.id,output,isError:true};yield {type:"turn.status",turnId,status:"running"};continue;
       }
-      const resolved={type:"approval.resolved",turnId,callId:call.id,decision:"approved",actor:"user"};
+      const resolved:RuntimeEvent={type:"approval.resolved",turnId,callId:call.id,decision:"approved",actor:"user"};
       await record("event",resolved);yield resolved;yield {type:"turn.status",turnId,status:"running"};
      }
      try{
