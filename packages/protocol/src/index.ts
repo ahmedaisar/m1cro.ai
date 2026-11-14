@@ -8,5 +8,5 @@ export interface ApprovalResolvedEvent { type:"approval.resolved"; turnId:string
 export type RuntimeEvent = TextDeltaEvent|ToolCallEvent|ToolResultEvent|TurnStatusEvent|ApprovalRequiredEvent|ApprovalResolvedEvent;
 export interface ToolCall { id:string; name:string; input:unknown }
 export type ModelEvent = {type:"text";text:string}|{type:"tool_call";call:ToolCall}|{type:"done";stopReason?:string};
-export interface ModelMessage { role:"system"|"user"|"assistant"|"tool"; content:string; toolCallId?:string; name?:string }
+export interface ModelMessage { role:"system"|"user"|"assistant"|"tool"; content:string; toolCallId?:string; name?:string;toolCalls?:ToolCall[]}
 export interface ModelRequest { model:string; messages:ModelMessage[]; tools:Array<{name:string;description:string;inputSchema:unknown}>; signal:AbortSignal }
