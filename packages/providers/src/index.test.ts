@@ -165,4 +165,46 @@ describe("OpenAICompatibleProvider", () => {
     }];
     for await (const event of provider.stream(request(messages))) void event;
   });
+
+
+describe("OpenAICompatibleProvider model discovery", () => {
+  it("preserves exact model IDs and maps optional context and per-token prices", async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toBe("https://provider.test/v1/models");
+      expect(init?.method).toBe("GET");
+      expect(new Headers(init?.headers).get("authorization")).toBe("Bearer test-key");
+      return Response.json({ data: [
+        { id: "vendor/model:latest", name: "Model Latest", context_length: 131072, pricing: { prompt: "0.000002", completion: "0.00001" } },
+        { id: "bare-model" },
+        { id: "" },
+        { name: "missing-id" },
+      ] });
+    });
+    const provider = new OpenAICompatibleProvider({ baseUrl: "https://provider.test/v1", providerId: "gateway", apiKey: "test-key", fetcher });
+    await expect(provider.discoverModels()).resolves.toEqual([
+      { provider: "gateway", id: "vendor/model:latest", displayName: "Model Latest", contextWindow: 131072, inputPricePerMillion: 2, outputPricePerMillion: 10, capabilities: {} },
+      { provider: "gateway", id: "bare-model", capabilities: {} },
+    ]);
+  });
+
+  it("leaves unknown capabilities unknown instead of inferring support", async () => {
+    const fetcher = vi.fn(async () => Response.json({ data: [{ id: "model-a" }] }));
+    const provider = new OpenAICompatibleProvider({ baseUrl: "https://provider.test/v1", fetcher });
+    const [model] = await provider.discoverModels();
+    expect(model).toBeDefined();
+    expect(model?.capabilities).toEqual({});
+  });
+
+  it("surfaces model-list HTTP errors", async () => {
+    const fetcher = vi.fn(async () => new Response("unauthorized", { status: 401 }));
+    const provider = new OpenAICompatibleProvider({ baseUrl: "https://provider.test/v1", fetcher });
+    await expect(provider.discoverModels()).rejects.toMatchObject({ name: "ProviderHttpError", status: 401 });
+  });
+
+  it("rejects malformed model-list payloads", async () => {
+    const fetcher = vi.fn(async () => Response.json({ models: [] }));
+    const provider = new OpenAICompatibleProvider({ baseUrl: "https://provider.test/v1", fetcher });
+    await expect(provider.discoverModels()).rejects.toThrow("invalid models response");
+  });
+});
 });
