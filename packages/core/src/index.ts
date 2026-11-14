@@ -53,7 +53,7 @@ export class AgentRuntime {
       calls.push(event.call);await record("event",{type:"tool.call",turnId,call:event.call});yield {type:"tool.call",turnId,callId:event.call.id,toolName:event.call.name,input:event.call.input};
      }else if(event.type==="done")sawDone=true;
     }
-    if(calls.length===0){if(!sawDone&&round===maxRounds)throw new Error("Agent reached maximum tool-round limit");break;}
+    if(calls.length===0)break;
     if(round===maxRounds)throw new Error("Agent reached maximum tool-round limit");
     const assistant:ModelMessage={role:"assistant",content:"",toolCalls:calls};
     messages.push(assistant);
