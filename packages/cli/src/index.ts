@@ -18,10 +18,10 @@ function parseArgs(argv:string[]):Args{
  for(let i=0;i<argv.length;i++){
   const arg=argv[i]!;
   if(arg==="--help"||arg==="-h")parsed.help=true;
-  else if(arg==="--workspace")parsed.workspace=argv[++i]??"";
-  else if(arg==="--session")parsed.session=argv[++i];
-  else if(arg==="--model")parsed.model=argv[++i];
-  else if(arg==="--base-url")parsed.baseUrl=argv[++i];
+  else if(arg==="--workspace"){const value=argv[++i];if(value===undefined||!value.trim())throw new Error("--workspace requires a directory");parsed.workspace=value;}
+  else if(arg==="--session"){const value=argv[++i];if(value===undefined)throw new Error("--session requires an ID");parsed.session=value;}
+  else if(arg==="--model"){const value=argv[++i];if(value===undefined||!value.trim())throw new Error("--model requires a model ID");parsed.model=value;}
+  else if(arg==="--base-url"){const value=argv[++i];if(value===undefined||!value.trim())throw new Error("--base-url requires a URL");parsed.baseUrl=value;}
   else if(arg.startsWith("-"))throw new Error(`Unknown option: ${arg}`);
   else parsed.prompt.push(arg);
  }
