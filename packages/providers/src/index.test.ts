@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { OpenAICompatibleProvider, ProviderHttpError } from "./index.js";
+import { AnthropicProvider, OllamaProvider, OpenAICompatibleProvider, ProviderHttpError } from "./index.js";
 import type { ModelRequest } from "@m1cro/protocol";
 
 const request = (
@@ -207,4 +207,97 @@ describe("OpenAICompatibleProvider model discovery", () => {
     await expect(provider.discoverModels()).rejects.toThrow("invalid models response");
   });
 });
+});
+
+
+describe("AnthropicProvider", () => {
+  it("sends system prompt, tools and auth headers and streams text", async () => {
+    const encoder = new TextEncoder();
+    const events = [
+      { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "hello" } },
+      { type: "message_stop" },
+    ];
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const event of events) controller.enqueue(encoder.encode("data: " + JSON.stringify(event) + "\n\n"));
+        controller.close();
+      },
+    });
+    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toBe("https://anthropic.test/v1/messages");
+      const headers = new Headers(init?.headers);
+      expect(headers.get("x-api-key")).toBe("secret");
+      expect(headers.get("anthropic-version")).toBe("2023-06-01");
+      const payload = JSON.parse(String(init?.body));
+      expect(payload.system).toBe("system prompt");
+      expect(payload.tools[0].input_schema).toEqual({ type: "object" });
+      return new Response(body);
+    });
+    const provider = new AnthropicProvider({ baseUrl: "https://anthropic.test", apiKey: "secret", fetcher });
+    const output = [];
+    for await (const event of provider.stream({
+      ...request(), messages: [{ role: "system", content: "system prompt" }, { role: "user", content: "hi" }],
+    })) output.push(event);
+    expect(output).toEqual([{ type: "text", text: "hello" }, { type: "done", stopReason: "end_turn" }]);
+  });
+
+  it("assembles streamed tool input JSON", async () => {
+    const encoder = new TextEncoder();
+    const events = [
+      { type: "content_block_start", index: 1, content_block: { type: "tool_use", id: "tool-1", name: "read_file", input: {} } },
+      { type: "content_block_delta", index: 1, delta: { type: "input_json_delta", partial_json: '{"path":' } },
+      { type: "content_block_delta", index: 1, delta: { type: "input_json_delta", partial_json: '"a.txt"}' } },
+      { type: "content_block_stop", index: 1 },
+    ];
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const event of events) controller.enqueue(encoder.encode("data: " + JSON.stringify(event) + "\n\n"));
+        controller.close();
+      },
+    });
+    const provider = new AnthropicProvider({ fetcher: async () => new Response(body) });
+    const output = [];
+    for await (const event of provider.stream(request())) output.push(event);
+    expect(output).toEqual([{ type: "tool_call", call: { id: "tool-1", name: "read_file", input: { path: "a.txt" } } }]);
+  });
+});
+
+describe("OllamaProvider", () => {
+  it("discovers exact local model names without inventing capabilities", async () => {
+    const fetcher = vi.fn(async () => Response.json({ models: [{ name: "qwen3.5:4b" }, { name: "llama3.2:latest" }, {}] }));
+    const provider = new OllamaProvider({ baseUrl: "http://localhost:11434", fetcher });
+    await expect(provider.discoverModels()).resolves.toEqual([
+      { provider: "ollama", id: "qwen3.5:4b", displayName: "qwen3.5:4b", capabilities: {} },
+      { provider: "ollama", id: "llama3.2:latest", displayName: "llama3.2:latest", capabilities: {} },
+    ]);
+  });
+
+  it("streams NDJSON text and tool calls", async () => {
+    const encoder = new TextEncoder();
+    const chunks = [
+      { message: { content: "hello " }, done: false },
+      { message: { content: "world", tool_calls: [{ function: { name: "read_file", arguments: { path: "a.txt" } } }] }, done: true },
+    ];
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const chunk of chunks) controller.enqueue(encoder.encode(JSON.stringify(chunk) + "\n"));
+        controller.close();
+      },
+    });
+    const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const payload = JSON.parse(String(init?.body));
+      expect(payload.model).toBe("fixture");
+      expect(payload.tools[0].function.name).toBe("write_file");
+      return new Response(body);
+    });
+    const provider = new OllamaProvider({ fetcher });
+    const output = [];
+    for await (const event of provider.stream(request())) output.push(event);
+    expect(output).toEqual([
+      { type: "text", text: "hello " },
+      { type: "text", text: "world" },
+      { type: "tool_call", call: { id: "ollama_0", name: "read_file", input: { path: "a.txt" } } },
+      { type: "done", stopReason: "stop" },
+    ]);
+  });
 });

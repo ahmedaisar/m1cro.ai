@@ -286,3 +286,191 @@ function delay(ms: number, signal: AbortSignal): Promise<void> {
     signal.addEventListener("abort", onAbort, { once: true });
   });
 }
+
+
+export interface AnthropicProviderOptions {
+  baseUrl?: string;
+  apiKey?: string;
+  version?: string;
+  headers?: Record<string, string>;
+  fetcher?: typeof fetch;
+}
+
+/** Anthropic Messages API adapter implemented against the public API contract. */
+export class AnthropicProvider implements ModelProvider {
+  readonly id = "anthropic";
+  constructor(private readonly options: AnthropicProviderOptions = {}) {}
+
+  async *stream(request: ModelRequest): AsyncIterable<ModelEvent> {
+    const fetcher = this.options.fetcher ?? fetch;
+    const system = request.messages.filter((m) => m.role === "system").map((m) => m.content).join("\n\n");
+    const messages = request.messages.filter((m) => m.role !== "system").map((m) => {
+      if (m.role === "tool") {
+        if (!m.toolCallId) throw new Error("Tool messages require a toolCallId");
+        return { role: "user", content: [{ type: "tool_result", tool_use_id: m.toolCallId, content: m.content }] };
+      }
+      if (m.role === "assistant" && m.toolCalls?.length) {
+        return { role: "assistant", content: [
+          ...(m.content ? [{ type: "text", text: m.content }] : []),
+          ...m.toolCalls.map((call) => ({ type: "tool_use", id: call.id, name: call.name, input: call.input })),
+        ] };
+      }
+      return { role: m.role, content: m.content };
+    });
+    const response = await fetcher((this.options.baseUrl ?? "https://api.anthropic.com").replace(/\/$/, "") + "/v1/messages", {
+      method: "POST", signal: request.signal,
+      headers: {
+        "content-type": "application/json",
+        "anthropic-version": this.options.version ?? "2023-06-01",
+        ...(this.options.apiKey ? { "x-api-key": this.options.apiKey } : {}),
+        ...this.options.headers,
+      },
+      body: JSON.stringify({
+        model: request.model, max_tokens: 4096, stream: true, messages,
+        ...(system ? { system } : {}),
+        ...(request.tools.length ? { tools: request.tools.map((tool) => ({ name: tool.name, description: tool.description, input_schema: tool.inputSchema })) } : {}),
+      }),
+    });
+    if (!response.ok) throw new ProviderHttpError(response.status, await response.text());
+    if (!response.body) throw new Error("Provider returned an empty response body");
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    const tools = new Map<number, { id: string; name: string; json: string }>();
+    const handle = (event: Record<string, any>): ModelEvent[] => {
+      if (event.type === "error") throw new Error("Anthropic stream error: " + (event.error?.message ?? "unknown error"));
+      if (event.type === "content_block_start" && event.content_block?.type === "tool_use") {
+        tools.set(event.index ?? 0, { id: event.content_block.id ?? "", name: event.content_block.name ?? "", json: "" });
+      }
+      const output: ModelEvent[] = [];
+      if (event.type === "content_block_delta") {
+        if (event.delta?.type === "text_delta" && event.delta.text) output.push({ type: "text", text: event.delta.text });
+        if (event.delta?.type === "input_json_delta") {
+          const tool = tools.get(event.index ?? 0);
+          if (tool) tool.json += event.delta.partial_json ?? "";
+        }
+      }
+      if (event.type === "content_block_stop") {
+        const tool = tools.get(event.index ?? 0);
+        if (tool) {
+          let input: unknown;
+          try { input = JSON.parse(tool.json || "{}"); } catch { throw new Error("Anthropic emitted malformed tool input JSON"); }
+          output.push({ type: "tool_call", call: { id: tool.id, name: tool.name, input } });
+          tools.delete(event.index ?? 0);
+        }
+      }
+      if (event.type === "message_stop") output.push({ type: "done", stopReason: "end_turn" });
+      return output;
+    };
+    try {
+      while (true) {
+        request.signal.throwIfAborted();
+        const { value, done } = await reader.read();
+        buffer += decoder.decode(value, { stream: !done });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith("data:")) continue;
+          let event: Record<string, any>;
+          try { event = JSON.parse(trimmed.slice(5).trim()); } catch { throw new Error("Anthropic emitted malformed SSE JSON"); }
+          for (const output of handle(event)) yield output;
+        }
+        if (done) break;
+      }
+      if (buffer.trim().startsWith("data:")) {
+        const event = JSON.parse(buffer.trim().slice(5).trim());
+        for (const output of handle(event)) yield output;
+      }
+    } finally {
+      await reader.cancel().catch(() => undefined);
+    }
+  }
+}
+
+export interface OllamaProviderOptions {
+  baseUrl?: string;
+  headers?: Record<string, string>;
+  fetcher?: typeof fetch;
+}
+
+/** Ollama native /api/chat adapter and /api/tags model discovery. */
+export class OllamaProvider implements ModelProvider {
+  readonly id = "ollama";
+  constructor(private readonly options: OllamaProviderOptions = {}) {}
+
+  async discoverModels(): Promise<DiscoveredModelRecord[]> {
+    const fetcher = this.options.fetcher ?? fetch;
+    const response = await fetcher((this.options.baseUrl ?? "http://127.0.0.1:11434").replace(/\/$/, "") + "/api/tags", {
+      headers: this.options.headers ?? {},
+    });
+    if (!response.ok) throw new ProviderHttpError(response.status, await response.text());
+    const payload: unknown = await response.json();
+    if (!payload || typeof payload !== "object" || !Array.isArray((payload as { models?: unknown }).models)) {
+      throw new Error("Ollama returned an invalid models response");
+    }
+    return (payload as { models: Array<Record<string, unknown>> }).models.flatMap((item) => {
+      if (typeof item.name !== "string" || !item.name.trim()) return [];
+      return [{ provider: this.id, id: item.name, displayName: item.name, capabilities: {} }];
+    });
+  }
+
+  async *stream(request: ModelRequest): AsyncIterable<ModelEvent> {
+    const fetcher = this.options.fetcher ?? fetch;
+    const messages = request.messages.map((m) => {
+      if (m.role === "tool") return { role: "tool", content: m.content };
+      if (m.role === "assistant" && m.toolCalls?.length) return {
+        role: "assistant", content: m.content,
+        tool_calls: m.toolCalls.map((call) => ({ function: { name: call.name, arguments: call.input } })),
+      };
+      return { role: m.role, content: m.content };
+    });
+    const response = await fetcher((this.options.baseUrl ?? "http://127.0.0.1:11434").replace(/\/$/, "") + "/api/chat", {
+      method: "POST", signal: request.signal,
+      headers: { "content-type": "application/json", ...this.options.headers },
+      body: JSON.stringify({
+        model: request.model, stream: true, messages,
+        ...(request.tools.length ? { tools: request.tools.map((tool) => ({
+          type: "function", function: { name: tool.name, description: tool.description, parameters: tool.inputSchema },
+        })) } : {}),
+      }),
+    });
+    if (!response.ok) throw new ProviderHttpError(response.status, await response.text());
+    if (!response.body) throw new Error("Provider returned an empty response body");
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let toolIndex = 0;
+    try {
+      while (true) {
+        request.signal.throwIfAborted();
+        const { value, done } = await reader.read();
+        buffer += decoder.decode(value, { stream: !done });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          let chunk: Record<string, any>;
+          try { chunk = JSON.parse(line); } catch { throw new Error("Ollama emitted malformed NDJSON"); }
+          if (chunk.error) throw new Error("Ollama stream error: " + chunk.error);
+          if (chunk.message?.content) yield { type: "text", text: chunk.message.content };
+          for (const call of chunk.message?.tool_calls ?? []) {
+            if (!call.function?.name) throw new Error("Ollama emitted a tool call without a function name");
+            yield { type: "tool_call", call: { id: "ollama_" + toolIndex++, name: call.function.name, input: call.function.arguments ?? {} } };
+          }
+          if (chunk.done) yield { type: "done", stopReason: "stop" };
+        }
+        if (done) break;
+      }
+      if (buffer.trim()) {
+        const chunk = JSON.parse(buffer.trim());
+        if (chunk.error) throw new Error("Ollama stream error: " + chunk.error);
+        if (chunk.message?.content) yield { type: "text", text: chunk.message.content };
+        if (chunk.done) yield { type: "done", stopReason: "stop" };
+      }
+    } finally {
+      await reader.cancel().catch(() => undefined);
+    }
+  }
+}
