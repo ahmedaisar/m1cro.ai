@@ -1,4 +1,4 @@
-import Ajv, { type AnySchema, type ValidateFunction } from "ajv";
+import { Ajv, type AnySchema, type ValidateFunction } from "ajv";
 import type { Risk } from "@m1cro/policy";
 export {Workspace,WorkspacePathError} from "./filesystem.js";
 export type {WorkspaceOptions} from "./filesystem.js";
