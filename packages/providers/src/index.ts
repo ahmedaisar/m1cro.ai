@@ -8,14 +8,12 @@ export class ProviderHttpError extends Error {
 }
 function toOpenAIMessages(messages:ModelMessage[]):OpenAIMessage[]{
  const result:OpenAIMessage[]=[];
- for(let i=0;i<messages.length;i++){
-  const message=messages[i]!;
+ for(const message of messages){
   if(message.role==="tool"){
    if(!message.toolCallId)throw new Error("Tool messages require a toolCallId");
    result.push({role:"tool",content:message.content,tool_call_id:message.toolCallId,...(message.name?{name:message.name}:{})});
-  }else if(message.role==="assistant" && messages[i+1]?.role==="tool"){
-   // Older runtime messages did not preserve the originating call; keep assistant/tool chronology valid.
-   result.push({role:"assistant",content:message.content});
+  }else if(message.role==="assistant"&&message.toolCalls?.length){
+   result.push({role:"assistant",content:message.content||null,tool_calls:message.toolCalls.map(call=>({id:call.id,type:"function",function:{name:call.name,arguments:JSON.stringify(call.input)}}))});
   }else result.push({role:message.role,content:message.content});
  }
  return result;
