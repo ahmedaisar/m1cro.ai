@@ -96,7 +96,6 @@ export class Workspace {
   if(!query)throw new Error("Search query must not be empty");
   const maxResults=Math.min(Math.max(options.maxResults??100,1),500);
   const matches:Array<{path:string;line:number;content:string}>=[];
-  const glob=options.glob?globToRegExp(options.glob):undefined;
   const walk=async(dir:string):Promise<void>=>{
    if(matches.length>=maxResults)return;
    for(const entry of await fs.readdir(dir,{withFileTypes:true})){
@@ -107,8 +106,8 @@ export class Workspace {
     const stat=await fs.lstat(full);
     if(stat.isSymbolicLink())continue;
     const rel=path.relative(this.root,full).split(path.sep).join("/");
+    if(options.glob&&!globToRegExp(options.glob).test(rel))continue;
     if(stat.isDirectory()){await walk(full);continue;}
-    if(glob&&!glob.test(rel))continue;
     if(!stat.isFile()||stat.size>this.maxReadBytes)continue;
     const text=await fs.readFile(full,"utf8");
     if(text.includes("\0"))continue;

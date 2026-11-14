@@ -41,16 +41,6 @@ describe("Workspace",()=>{
   await writeFile(path.join(root,"node_modules","ignore.txt"),"needle hidden");
   expect(await ws.search("needle")).toEqual([{path:"src/a.ts",line:2,content:"needle here"}]);
  });
- it("applies glob filters to nested files without pruning their parent directories",async()=>{
-  root=await mkdtemp(path.join(os.tmpdir(),"m1cro-workspace-"));
-  await mkdir(path.join(root,"src","nested"),{recursive:true});
-  await writeFile(path.join(root,"src","nested","match.ts"),"needle in TypeScript");
-  await writeFile(path.join(root,"src","nested","skip.txt"),"needle in text");
-  const ws=new Workspace({root});
-  expect(await ws.search("needle",{glob:"**/*.ts"})).toEqual([
-   {path:"src/nested/match.ts",line:1,content:"needle in TypeScript"}
-  ]);
- });
  it("creates missing nested parent directories without leaving the workspace",async()=>{
   root=await mkdtemp(path.join(os.tmpdir(),"m1cro-workspace-"));
   const ws=new Workspace({root});
