@@ -73,7 +73,6 @@ describe("capability-aware model evaluation", () => {
 
   it("deduplicates repeated requirements and allows an empty requirement set", () => {
     const catalog = new ModelCatalog();
-    const model = catalog.register({ provider: "p", id: "any", capabilities: {} });
     const evaluation = evaluateModelCapabilities({ provider: "p", id: "any", capabilities: {} }, ["text", "text"]);
     expect(evaluation.required).toEqual(["text"]);
     expect(evaluation.status).toBe("unknown");
