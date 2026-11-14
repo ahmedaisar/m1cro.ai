@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { capabilityState, ModelCatalog } from "./index.js";
+import { capabilityState, evaluateModelCapabilities, ModelCatalog, partitionModelsByCapabilities } from "./index.js";
 
 describe("ModelCatalog", () => {
   it("preserves the provider's exact model identifier", () => {
@@ -35,5 +35,47 @@ describe("ModelCatalog", () => {
     expect(() => catalog.register({
       provider: "p", id: "m", contextWindow: -1, capabilities: {},
     })).toThrow("contextWindow");
+  });
+});
+
+
+describe("capability-aware model evaluation", () => {
+  it("only treats explicit support for every requirement as compatible", () => {
+    const catalog = new ModelCatalog();
+    const compatible = catalog.merge("p", "complete", {
+      capabilities: { toolCalling: "supported", vision: "supported" },
+    });
+    const unknown = catalog.merge("p", "partial", {
+      capabilities: { toolCalling: "supported" },
+    });
+    const incompatible = catalog.merge("p", "no-vision", {
+      capabilities: { toolCalling: "supported", vision: "unsupported" },
+    });
+    expect(evaluateModelCapabilities(compatible, ["toolCalling", "vision"]).status).toBe("compatible");
+    expect(evaluateModelCapabilities(unknown, ["toolCalling", "vision"])).toMatchObject({
+      status: "unknown", supported: ["toolCalling"], unknown: ["vision"], unsupported: [],
+    });
+    expect(evaluateModelCapabilities(incompatible, ["toolCalling", "vision"])).toMatchObject({
+      status: "incompatible", unsupported: ["vision"],
+    });
+  });
+
+  it("partitions candidates without guessing from model names and preserves candidate order", () => {
+    const catalog = new ModelCatalog();
+    catalog.register({ provider: "p", id: "vision-ready", capabilities: { vision: { state: "supported", source: "provider" } } });
+    catalog.register({ provider: "p", id: "unknown-vision-model", capabilities: {} });
+    catalog.register({ provider: "p", id: "text-only", capabilities: { vision: { state: "unsupported", source: "provider" } } });
+    const groups = partitionModelsByCapabilities(catalog.list(), ["vision"]);
+    expect(groups.compatible.map((model) => model.id)).toEqual(["vision-ready"]);
+    expect(groups.needsVerification.map((model) => model.id)).toEqual(["unknown-vision-model"]);
+    expect(groups.incompatible.map((model) => model.id)).toEqual(["text-only"]);
+  });
+
+  it("deduplicates repeated requirements and allows an empty requirement set", () => {
+    const catalog = new ModelCatalog();
+    const evaluation = evaluateModelCapabilities({ provider: "p", id: "any", capabilities: {} }, ["text", "text"]);
+    expect(evaluation.required).toEqual(["text"]);
+    expect(evaluation.status).toBe("unknown");
+    expect(evaluateModelCapabilities({ provider: "p", id: "any", capabilities: {} }, []).status).toBe("compatible");
   });
 });

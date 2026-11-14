@@ -2,7 +2,7 @@
 
 ## Delivery status — 2026-11-15
 
-The first local runtime vertical slice has been merged through PRs #1–#6. This is a **foundation milestone, not completion of the MVP**. The current release is intentionally limited to an OpenAI-compatible local CLI, policy-gated workspace filesystem tools and local session persistence.
+The initial runtime foundation was merged through PRs #1–#6. Follow-up milestones added the normalized model catalog (PR #9), OpenAI-compatible model discovery (PR #10), and Anthropic/Ollama adapters (PR #12). This remains a **foundation milestone, not completion of the MVP**. The CLI currently uses the OpenAI-compatible provider path; the additional adapters and catalog are package-level capabilities pending full CLI configuration/wiring.
 
 The source-provenance assessment is documented in `docs/research/license-provenance-audit.md`. It is an engineering risk assessment, not legal clearance. Reuse of OpenClaude/Verboo source remains blocked unless qualified legal review approves it.
 
@@ -18,7 +18,7 @@ The source-provenance assessment is documented in `docs/research/license-provena
 ## Phase 1 — Agent runtime vertical slice
 
 - [x] Provider adapter contract and first OpenAI-compatible adapter.
-- [ ] Model catalog and explicit capability schema.
+- [x] Model catalog and explicit capability schema (PR #9).
 - [x] Streaming agent loop and turn state machine.
 - [x] Workspace filesystem read/write/list/search tools with path, size and symlink checks.
 - [ ] Shell/process tools behind an isolated executor; raw shell execution remains disabled.
@@ -36,8 +36,8 @@ The source-provenance assessment is documented in `docs/research/license-provena
 - [ ] Subagents and persistent goals.
 - [ ] Runtime doctor, diagnostics and privacy guardrails.
 - [ ] Installed-package, PTY and cross-platform tests.
-- [ ] Anthropic-compatible and Ollama/local provider adapters.
-- [ ] Capability-aware model catalog and routing.
+- [x] Anthropic-compatible and Ollama/local provider adapters (PR #12).
+- [x] Capability evaluation and candidate partitioning; provider/CLI routing integration remains open.
 
 ## Phase 3 — Workspace and client protocol
 
