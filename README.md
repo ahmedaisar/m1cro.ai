@@ -30,12 +30,22 @@ pnpm test
 pnpm build
 ```
 
+## CLI quick start
+
+```bash
+pnpm install
+export OPENAI_API_KEY="your-api-key"
+pnpm cli
+```
+
+You can also send one prompt with `pnpm cli -- "Explain this codebase"`. Options include `--workspace <dir>`, `--model <id>`, `--base-url <url>` and `--session <id>`. Local configuration and session history live under `~/.m1cro`. The CLI currently connects to an OpenAI-compatible endpoint.
+
 ## Security defaults
 
-- No built-in shell, filesystem, browser or network tools are registered.
-- Only tools explicitly registered by the host can execute.
-- The default policy automatically allows read-only tools and requires approval for other risk classes.
-- Approval handshake is not yet implemented; non-read operations fail closed.
+- The CLI registers workspace-scoped filesystem tools only; there is no shell, browser or arbitrary network tool.
+- Reads are automatically allowed; writes require explicit interactive approval.
+- Approval prompts identify the exact tool, risk and input being approved.
+- Session/config directories use restrictive permissions; API keys are never printed.
 - BYOK/local operation does not require an m1cro account.
 
 ## Product documents
