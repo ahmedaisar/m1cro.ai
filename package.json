@@ -5,23 +5,19 @@
   "description": "The m1cro.ai agent runtime and developer workspace",
   "license": "UNLICENSED",
   "packageManager": "pnpm@10.0.0",
-  "engines": {
-    "node": ">=22.0.0"
-  },
+  "engines": {"node": ">=22.0.0"},
   "scripts": {
     "build": "tsc -b",
     "typecheck": "tsc -b --pretty false",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "cli": "pnpm --filter @m1cro/cli dev",
+    "cli:build": "pnpm --filter @m1cro/cli build"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
   },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild"
-    ]
-  }
+  "pnpm": {"onlyBuiltDependencies": ["esbuild"]}
 }
