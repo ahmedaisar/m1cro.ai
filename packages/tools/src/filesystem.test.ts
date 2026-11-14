@@ -41,4 +41,11 @@ describe("Workspace",()=>{
   await writeFile(path.join(root,"node_modules","ignore.txt"),"needle hidden");
   expect(await ws.search("needle")).toEqual([{path:"src/a.ts",line:2,content:"needle here"}]);
  });
+ it("creates missing nested parent directories without leaving the workspace",async()=>{
+  root=await mkdtemp(path.join(os.tmpdir(),"m1cro-workspace-"));
+  const ws=new Workspace({root});
+  await ws.writeFile("new/deep/file.txt","nested");
+  expect(await ws.readFile("new/deep/file.txt")).toBe("nested");
+ });
+
 });
