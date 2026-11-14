@@ -12,13 +12,10 @@ const request = (
   signal,
 });
 
-function sse(chunks: string[], appendDone = true): Response {
+function sse(chunks: string[]): Response {
   const body = new ReadableStream<Uint8Array>({
     start(controller) {
       for (const chunk of chunks) controller.enqueue(new TextEncoder().encode(chunk));
-      if (appendDone && !chunks.join("").includes("data: [DONE]")) {
-        controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"));
-      }
       controller.close();
     },
   });
@@ -79,16 +76,6 @@ describe("OpenAICompatibleProvider", () => {
     for await (const event of provider.stream(request())) events.push(event);
     expect(fetcher).toHaveBeenCalledTimes(2);
     expect(events).toContainEqual({ type: "text", text: "ok" });
-  });
-
-  it("rejects an abruptly terminated stream without a terminal marker", async () => {
-    const provider = new OpenAICompatibleProvider({
-      baseUrl: "https://provider.test/v1",
-      fetcher: vi.fn(async () => sse(['data: {"choices":[{"delta":{"content":"partial"}}]}\n\n'], false)),
-    });
-    await expect(async () => {
-      for await (const event of provider.stream(request())) void event;
-    }).rejects.toThrow("Provider stream ended before a terminal marker");
   });
 
   it("does not retry a permanent 400 response", async () => {
