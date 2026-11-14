@@ -19,8 +19,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: pnpm install --no-frozen-lockfile
-      - name: Emit generated lockfile for repository bootstrap
-        run: node -e "console.log('PNPM_LOCKFILE_BASE64=' + require('node:fs').readFileSync('pnpm-lock.yaml').toString('base64'))"
+      - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm test
