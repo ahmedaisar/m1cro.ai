@@ -16,7 +16,7 @@ type Args={prompt:string[];workspace:string;session?:string;model?:string;baseUr
 const providerDefaults:Record<ProviderKind,{baseUrl:string;model:string}>={ "openai-compatible":{baseUrl:"https://api.openai.com/v1",model:"gpt-4o-mini"}, anthropic:{baseUrl:"https://api.anthropic.com",model:"claude-3-5-haiku-latest"}, ollama:{baseUrl:"http://127.0.0.1:11434",model:"llama3.2"} };
 const defaultConfig:Config={provider:"openai-compatible",...providerDefaults["openai-compatible"]};
 const isProviderKind=(value:string):value is ProviderKind=>value==="openai-compatible"||value==="anthropic"||value==="ollama";
-export function createProvider(provider:ProviderKind,baseUrl:string,apiKey?:string):ModelProvider{ if(provider==="anthropic")return new AnthropicProvider({baseUrl,apiKey}); if(provider==="ollama")return new OllamaProvider({baseUrl}); return new OpenAICompatibleProvider({baseUrl,apiKey}); }
+export function createProvider(provider:ProviderKind,baseUrl:string,apiKey?:string):ModelProvider{ if(provider==="anthropic")return new AnthropicProvider({baseUrl,...(apiKey?{apiKey}:{})}); if(provider==="ollama")return new OllamaProvider({baseUrl}); return new OpenAICompatibleProvider({baseUrl,...(apiKey?{apiKey}:{})}); }
 function parseArgs(argv:string[]):Args{
  const parsed:Args={prompt:[],workspace:process.cwd(),help:false};
  for(let i=0;i<argv.length;i++){
