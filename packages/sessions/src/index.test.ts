@@ -39,8 +39,7 @@ describe("JsonlSessionStore",()=>{
   const fs=await import("node:fs/promises");
   const outside=path.join(os.tmpdir(),"m1cro-outside-session.jsonl");
   try{
-   await fs.writeFile(outside,"outside
-");
+   await fs.writeFile(outside,"outside\n");
    await fs.symlink(outside,path.join(directory,"linked.jsonl"));
    const store=new JsonlSessionStore(id=>path.join(directory,id+".jsonl"));
    await expect(store.read("linked")).rejects.toBeTruthy();
