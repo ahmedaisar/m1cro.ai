@@ -43,7 +43,7 @@ Options:
   -h, --help         Show this help
 
 Configuration:
-  OPENAI_API_KEY     Provider API key (required unless set in local config)
+  OPENAI_API_KEY     Provider API key (required; never stored in local config)
   M1CRO_MODEL        Default model override
   OPENAI_BASE_URL    Default API base URL override
 
@@ -62,7 +62,11 @@ async function loadConfig():Promise<Config>{
    throw new Error("Plaintext API keys in ~/.m1cro/config.json are not supported. Remove the apiKey field and set OPENAI_API_KEY in your environment.");
   }
   return {baseUrl:parsed.baseUrl??defaultConfig.baseUrl,model:parsed.model??defaultConfig.model};
- }catch(error){if((error as NodeJS.ErrnoException).code!=="ENOENT")throw new Error("Could not read ~/.m1cro/config.json");return defaultConfig;}
+ }catch(error){
+  if((error as NodeJS.ErrnoException).code==="ENOENT")return defaultConfig;
+  if(error instanceof Error&&error.message.startsWith("Plaintext API keys"))throw error;
+  throw new Error("Could not read ~/.m1cro/config.json");
+ }
 }
 async function approvalPrompt(request:Parameters<ApprovalController["request"]>[0],signal:AbortSignal):Promise<Awaited<ReturnType<ApprovalController["request"]>>>{
  if(!stdin.isTTY||!stdout.isTTY)return {decision:"reject",actor:"user",reason:"Interactive approval requires a TTY"};
