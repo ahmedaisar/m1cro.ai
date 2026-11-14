@@ -19,25 +19,24 @@ export class Workspace {
   if(typeof relativePath!=="string"||!relativePath.trim())throw new WorkspacePathError("Path must be a non-empty string");
   if(path.isAbsolute(relativePath))throw new WorkspacePathError("Absolute paths are not allowed");
   const candidate=path.resolve(this.root,relativePath);
-  if(candidate!==this.root&&!candidate.startsWith(this.root+path.sep))throw new WorkspacePathError("Path escapes workspace root");
+  const relative=path.relative(this.root,candidate);
+  if(relative===".."||relative.startsWith(".."+path.sep)||path.isAbsolute(relative))throw new WorkspacePathError("Path escapes workspace root");
   const rootReal=await fs.realpath(this.root);
-  let current=path.parse(candidate).root;
-  const rel=path.relative(current,candidate).split(path.sep).filter(Boolean);
-  for(let i=0;i<rel.length;i++){
-   current=path.join(current,rel[i]!);
-   const isLeaf=i===rel.length-1;
+  let current=rootReal;
+  const parts=relative?relative.split(path.sep).filter(Boolean):[];
+  for(let i=0;i<parts.length;i++){
+   current=path.join(current,parts[i]!);
+   const isLeaf=i===parts.length-1;
    try{
     const stat=await fs.lstat(current);
     if(stat.isSymbolicLink())throw new WorkspacePathError("Symbolic links are not permitted in workspace paths");
-    const real=await fs.realpath(current);
-    if(real!==rootReal&&!real.startsWith(rootReal+path.sep))throw new WorkspacePathError("Resolved path escapes workspace root");
     if(!isLeaf&&!stat.isDirectory())throw new WorkspacePathError("A parent path component is not a directory");
    }catch(error){
     if((error as NodeJS.ErrnoException).code==="ENOENT"&&options.allowMissingLeaf&&isLeaf)break;
     throw error;
    }
   }
-  return candidate;
+  return path.join(rootReal,relative);
  }
  async readFile(relativePath:string):Promise<string>{
   const resolved=await this.resolve(relativePath);
@@ -49,11 +48,14 @@ export class Workspace {
  async writeFile(relativePath:string,content:string):Promise<{bytes:number}>{
   const bytes=Buffer.byteLength(content,"utf8");
   if(bytes>this.maxWriteBytes)throw new WorkspacePathError("Content exceeds maximum write size");
+  if(path.isAbsolute(relativePath))throw new WorkspacePathError("Absolute paths are not allowed");
   const candidate=path.resolve(this.root,relativePath);
-  if(candidate!==this.root&&!candidate.startsWith(this.root+path.sep))throw new WorkspacePathError("Path escapes workspace root");
+  const relative=path.relative(this.root,candidate);
+  if(relative===".."||relative.startsWith(".."+path.sep)||path.isAbsolute(relative))throw new WorkspacePathError("Path escapes workspace root");
+  const rootReal=await fs.realpath(this.root);
   const relativeParent=path.relative(this.root,path.dirname(candidate));
   const parentParts=relativeParent?relativeParent.split(path.sep):[];
-  let current=this.root;
+  let current=rootReal;
   for(const part of parentParts){
    current=path.join(current,part);
    try{
@@ -64,10 +66,11 @@ export class Workspace {
     await fs.mkdir(current,{mode:0o700});
    }
   }
-  const parent=path.dirname(candidate);
+  const resolved=await this.resolve(relativePath,{allowMissingLeaf:true});
+  const parent=path.dirname(resolved);
   // Re-check all path components and the leaf after creating missing parents.
   const checked=await this.resolve(relativePath,{allowMissingLeaf:true});
-  const resolved=checked;
+  if(checked!==resolved)throw new WorkspacePathError("Path changed during write");
   if(checked!==resolved)throw new WorkspacePathError("Path changed during write");
   const temp=path.join(parent,`.m1cro-${randomUUID()}.tmp`);
   try{
