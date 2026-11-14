@@ -82,4 +82,21 @@ describe("AgentRuntime",()=>{
     ]);
   });
 
+  it("restores streamed assistant text from session history",async()=>{
+    const records:Array<{id:string;timestamp:string;kind:"message"|"event";data:unknown}>=[];
+    const sessionStore={append:async(_id:string,item:typeof records[number])=>{records.push(item);},read:async()=>records};
+    let secondMessages:ModelRequest["messages"]=[];
+    const firstProvider:ModelProvider={id:"first",async *stream(){yield {type:"text",text:"hello "} as const;yield {type:"text",text:"world"} as const;yield {type:"done"} as const;}};
+    const secondProvider:ModelProvider={id:"second",async *stream(request){secondMessages=request.messages;yield {type:"done"} as const;}};
+    const first=new AgentRuntime({provider:firstProvider,tools:new ToolRegistry(),policy:new DefaultPolicy(),model:"fixture",sessionStore});
+    for await(const _ of first.run({sessionId:"resume-text",prompt:"first"}))void _;
+    const second=new AgentRuntime({provider:secondProvider,tools:new ToolRegistry(),policy:new DefaultPolicy(),model:"fixture",sessionStore});
+    for await(const _ of second.run({sessionId:"resume-text",prompt:"second"}))void _;
+    expect(secondMessages).toEqual([
+      {role:"user",content:"first"},
+      {role:"assistant",content:"hello world"},
+      {role:"user",content:"second"}
+    ]);
+  });
+
 });
