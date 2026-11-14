@@ -89,7 +89,8 @@ export async function runCli(argv=process.argv.slice(2)):Promise<number>{
  let args:Args;
  try{args=parseArgs(argv);}catch(error){console.error(error instanceof Error?error.message:String(error));return 2;}
  if(args.help){stdout.write(help());return 0;}
- let config:Config;\n try{config=await loadConfig();}catch(error){console.error(error instanceof Error?error.message:String(error));return 2;}
+ let config:Config;
+ try{config=await loadConfig();}catch(error){console.error(error instanceof Error?error.message:String(error));return 2;}
  const merged:Config={
   baseUrl:args.baseUrl??process.env.OPENAI_BASE_URL??config.baseUrl,
   model:args.model??process.env.M1CRO_MODEL??config.model,
@@ -106,7 +107,7 @@ export async function runCli(argv=process.argv.slice(2)):Promise<number>{
  }
  if(!/^https?:\/\//i.test(merged.baseUrl)){console.error("Provider base URL must use http or https.");return 2;}
  const base=path.join(os.homedir(),".m1cro"),sessions=path.join(base,"sessions");
- await mkdir(sessions,{recursive:true,mode:0o700});
+ try{await mkdir(sessions,{recursive:true,mode:0o700});}catch(error){console.error("Could not prepare local session storage.");return 2;}
  const sessionId=args.session??randomUUID().replace(/-/g,"");
  const sessionStore=new JsonlSessionStore(id=>path.join(sessions,`${id}.jsonl`));
  const tools=new ToolRegistry();
@@ -119,6 +120,7 @@ export async function runCli(argv=process.argv.slice(2)):Promise<number>{
   const prompt=args.prompt.join(" ");
   for await(const event of runtime.run({sessionId,prompt}))formatEvent(event);
   stdout.write("\n");
+  if(!stdin.isTTY||!stdout.isTTY)return 0;
  }
  if(!stdin.isTTY||!stdout.isTTY)return 0;
  const rl=createInterface({input:stdin,output:stdout});
