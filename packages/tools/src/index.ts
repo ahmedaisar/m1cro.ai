@@ -1,8 +1,37 @@
+import Ajv, { type AnySchema, type ValidateFunction } from "ajv";
 import type { Risk } from "@m1cro/policy";
-export interface ToolDefinition<TInput=unknown,TOutput=unknown> { name:string; description:string; inputSchema:unknown; risk:Risk; parse(input:unknown):TInput; execute(input:TInput,signal:AbortSignal):Promise<TOutput> }
+
+export interface ToolDefinition<TInput=unknown,TOutput=unknown> {
+  name:string;
+  description:string;
+  inputSchema:AnySchema;
+  risk:Risk;
+  parse(input:unknown):TInput;
+  execute(input:TInput,signal:AbortSignal):Promise<TOutput>;
+}
+export class ToolInputValidationError extends Error {
+  constructor(readonly toolName:string, message:string) {
+    super(`Invalid input for tool "${toolName}": ${message}`);
+    this.name="ToolInputValidationError";
+  }
+}
+type RegisteredTool = ToolDefinition<never,unknown> & { validate:ValidateFunction };
 export class ToolRegistry {
- private readonly tools=new Map<string,ToolDefinition<never,unknown>>();
- register<TInput,TOutput>(tool:ToolDefinition<TInput,TOutput>):void { if(this.tools.has(tool.name)) throw new Error(`Tool already registered: ${tool.name}`); this.tools.set(tool.name,tool as ToolDefinition<never,unknown>); }
- get(name:string):ToolDefinition<never,unknown>|undefined { return this.tools.get(name); }
- list():ToolDefinition<never,unknown>[] { return [...this.tools.values()]; }
+  private readonly tools=new Map<string,RegisteredTool>();
+  private readonly ajv=new Ajv({allErrors:true,strict:true,allowUnionTypes:true});
+  register<TInput,TOutput>(tool:ToolDefinition<TInput,TOutput>):void {
+    if(this.tools.has(tool.name)) throw new Error(`Tool already registered: ${tool.name}`);
+    const validate=this.ajv.compile(tool.inputSchema);
+    this.tools.set(tool.name,{...tool,validate} as RegisteredTool);
+  }
+  get(name:string):RegisteredTool|undefined { return this.tools.get(name); }
+  list():RegisteredTool[] { return [...this.tools.values()]; }
+  validateInput(name:string,input:unknown):void {
+    const tool=this.tools.get(name);
+    if(!tool) throw new Error(`Unknown tool: ${name}`);
+    if(!tool.validate(input)) {
+      const detail=this.ajv.errorsText(tool.validate.errors,{separator:"; "});
+      throw new ToolInputValidationError(name,detail);
+    }
+  }
 }
