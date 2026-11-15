@@ -59,12 +59,12 @@ export class AgentRuntime {
    ...history.filter(message=>message.role!=="system"),
    {role:"user",content:input.prompt}
   ];
-  const selectedModel=this.options.modelSelection ? selectModelForCapabilities(this.options.provider.id,this.options.modelSelection).model.id : this.options.model;
   const maxRounds=this.options.maxToolRounds??8;
   let terminal:RuntimeEvent={type:"turn.status",turnId,status:"completed"};
   try{
    await record("message",{role:"user",content:input.prompt});
    yield {type:"turn.status",turnId,status:"running"};
+   const selectedModel=this.options.modelSelection ? selectModelForCapabilities(this.options.provider.id,this.options.modelSelection).model.id : this.options.model;
    for(let round=0;round<=maxRounds;round++){
     controller.signal.throwIfAborted();
     const calls:ToolCall[]=[];let assistantText="";
