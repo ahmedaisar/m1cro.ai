@@ -43,7 +43,7 @@ The source-provenance assessment is documented in `docs/research/license-provena
 ## Phase 3 — Workspace and client protocol
 
 - [x] Versioned runtime event protocol and per-session event sequencing (PR #17).
-- [ ] Web project/session workspace.
+- [x] Initial Next.js web workspace shell (PR #18); project/session data and runtime bridge remain open.
 - [ ] Attach to and observe active runtime sessions.
 - [ ] Browser/editor integration foundations.
 
