@@ -37,7 +37,8 @@ The source-provenance assessment is documented in `docs/research/license-provena
 - [ ] Runtime doctor, diagnostics and privacy guardrails.
 - [ ] Installed-package, PTY and cross-platform tests.
 - [x] Anthropic-compatible and Ollama/local provider adapters (PR #12).
-- [x] Capability evaluation and candidate partitioning; provider/CLI routing integration remains open.
+- [x] Capability evaluation and candidate partitioning.
+- [x] Runtime-level capability-aware model selection (PR #16); automatic provider discovery/catalog population and CLI routing remain open.
 
 ## Phase 3 — Workspace and client protocol
 
