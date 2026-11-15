@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { AgentRuntime, type ApprovalController } from "./index.js";
+import { AgentRuntime, ModelSelectionError, selectModelForCapabilities, type ApprovalController } from "./index.js";
+import { ModelCatalog } from "@m1cro/models";
 import { DefaultPolicy } from "@m1cro/policy";
 import { ToolRegistry } from "@m1cro/tools";
 import type { ModelProvider } from "@m1cro/providers";
@@ -119,4 +120,37 @@ describe("AgentRuntime",()=>{
     ]);
   });
 
+});
+
+
+describe("runtime capability-aware model selection", () => {
+  const catalog = () => {
+    const value = new ModelCatalog();
+    value.register({ provider: "fixture", id: "unknown-tools", capabilities: { text: { state: "supported", source: "provider" }, toolCalling: { state: "unknown", source: "default" } } });
+    value.register({ provider: "fixture", id: "no-tools", capabilities: { text: { state: "supported", source: "provider" }, toolCalling: { state: "unsupported", source: "provider" } } });
+    value.register({ provider: "fixture", id: "verified-tools", capabilities: { text: { state: "supported", source: "provider" }, toolCalling: { state: "supported", source: "provider" } } });
+    value.register({ provider: "other", id: "foreign-provider", capabilities: { toolCalling: { state: "supported", source: "provider" } } });
+    return value;
+  };
+  it("selects only an explicitly compatible model for the runtime provider", () => {
+    const selected = selectModelForCapabilities("fixture", { catalog: catalog(), requiredCapabilities: ["toolCalling"] });
+    expect(selected.model.id).toBe("verified-tools");
+    expect(selected.alternatives).toEqual([]);
+  });
+  it("fails closed when candidates are unknown or incompatible", () => {
+    expect(() => selectModelForCapabilities("fixture", { catalog: catalog(), requiredCapabilities: ["vision"] })).toThrow(ModelSelectionError);
+  });
+  it("does not silently replace an explicitly preferred model", () => {
+    expect(() => selectModelForCapabilities("fixture", { catalog: catalog(), requiredCapabilities: ["toolCalling"], preferredModelId: "unknown-tools" })).toThrow(/not verified/);
+  });
+  it("does not call the provider when no model satisfies runtime requirements", async () => {
+    const stream = vi.fn(async function* () { yield { type: "done" } as const; });
+    const provider: ModelProvider = { id: "fixture", stream };
+    const runtime = new AgentRuntime({ provider, tools: new ToolRegistry(), policy: new DefaultPolicy(), model: "legacy-default", modelSelection: { catalog: catalog(), requiredCapabilities: ["vision"] } });
+    const events = [];
+    for await (const event of runtime.run({ sessionId: "selection-fail", prompt: "use vision" })) events.push(event);
+    expect(stream).not.toHaveBeenCalled();
+    expect(events.at(-1)).toMatchObject({ type: "turn.status", status: "failed" });
+    expect(events.at(-1)).toMatchObject({ reason: expect.stringMatching(/No model explicitly supports/) });
+  });
 });

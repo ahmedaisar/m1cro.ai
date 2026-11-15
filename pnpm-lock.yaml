@@ -51,6 +51,9 @@ importers:
 
   packages/core:
     dependencies:
+      '@m1cro/models':
+        specifier: workspace:*
+        version: link:../models
       '@m1cro/policy':
         specifier: workspace:*
         version: link:../policy

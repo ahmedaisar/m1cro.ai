@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { evaluateModelCapabilities, type ModelCapability, type ModelCatalog, type ModelRecord } from "@m1cro/models";
 import type { Policy } from "@m1cro/policy";
 import type { ModelProvider } from "@m1cro/providers";
 import type { ModelMessage, RuntimeEvent, ToolCall } from "@m1cro/protocol";
@@ -8,7 +9,30 @@ import type { SessionStore } from "@m1cro/sessions";
 export type ApprovalDecision = {decision:"approve";actor:"user"}|{decision:"reject";actor:"user";reason?:string};
 export interface ApprovalRequest {turnId:string;callId:string;toolName:string;input:unknown;risk:"read"|"write"|"destructive"|"network"|"execute"}
 export interface ApprovalController {request(request:ApprovalRequest,signal:AbortSignal):Promise<ApprovalDecision>}
-export interface AgentOptions {provider:ModelProvider;tools:ToolRegistry;policy:Policy;model:string;maxToolRounds?:number;systemPrompt?:string;approval?:ApprovalController;sessionStore?:SessionStore}
+export interface ModelSelectionOptions { catalog: ModelCatalog; requiredCapabilities: readonly ModelCapability[]; preferredModelId?: string }
+export interface ModelSelectionResult { model: ModelRecord; alternatives: ModelRecord[] }
+export class ModelSelectionError extends Error {
+ constructor(message: string, readonly provider: string, readonly requiredCapabilities: readonly ModelCapability[], readonly candidates: readonly { id: string; status: string; unsupported: readonly ModelCapability[]; unknown: readonly ModelCapability[] }[]) { super(message); this.name = "ModelSelectionError"; }
+}
+/** Select only models with explicit support for every required capability. Unknown is never treated as support. */
+export function selectModelForCapabilities(provider: string, options: ModelSelectionOptions): ModelSelectionResult {
+ const candidates = options.catalog.list(provider);
+ const evaluations = candidates.map((model) => ({ model, evaluation: evaluateModelCapabilities(model, options.requiredCapabilities) }));
+ const compatible = evaluations.filter(({ evaluation }) => evaluation.status === "compatible");
+ const describe = evaluations.map(({ model, evaluation }) => ({ id: model.id, status: evaluation.status, unsupported: evaluation.unsupported, unknown: evaluation.unknown }));
+ if (options.preferredModelId) {
+  const preferred = evaluations.find(({ model }) => model.id === options.preferredModelId);
+  if (!preferred || preferred.evaluation.status !== "compatible") {
+   throw new ModelSelectionError(`Preferred model "${options.preferredModelId}" is not verified for required capabilities: ${options.requiredCapabilities.join(", ")}`, provider, options.requiredCapabilities, describe);
+  }
+  return { model: preferred.model, alternatives: compatible.filter(({ model }) => model.id !== preferred.model.id).map(({ model }) => model) };
+ }
+ if (compatible.length === 0) {
+  throw new ModelSelectionError(candidates.length === 0 ? `No catalog models are registered for provider "${provider}"` : `No model explicitly supports all required capabilities: ${options.requiredCapabilities.join(", ")}`, provider, options.requiredCapabilities, describe);
+ }
+ return { model: compatible[0]!.model, alternatives: compatible.slice(1).map(({ model }) => model) };
+}
+export interface AgentOptions {provider:ModelProvider;tools:ToolRegistry;policy:Policy;model:string;modelSelection?:ModelSelectionOptions;maxToolRounds?:number;systemPrompt?:string;approval?:ApprovalController;sessionStore?:SessionStore}
 export interface RunInput {sessionId:string;prompt:string;signal?:AbortSignal}
 export class AgentRuntime {
  constructor(private readonly options:AgentOptions){}
@@ -40,10 +64,11 @@ export class AgentRuntime {
   try{
    await record("message",{role:"user",content:input.prompt});
    yield {type:"turn.status",turnId,status:"running"};
+   const selectedModel=this.options.modelSelection ? selectModelForCapabilities(this.options.provider.id,this.options.modelSelection).model.id : this.options.model;
    for(let round=0;round<=maxRounds;round++){
     controller.signal.throwIfAborted();
     const calls:ToolCall[]=[];let assistantText="";
-    for await(const event of this.options.provider.stream({model:this.options.model,messages,tools:this.options.tools.list().map(({name,description,inputSchema})=>({name,description,inputSchema})),signal:controller.signal})){
+    for await(const event of this.options.provider.stream({model:selectedModel,messages,tools:this.options.tools.list().map(({name,description,inputSchema})=>({name,description,inputSchema})),signal:controller.signal})){
      if(event.type==="text"){
       assistantText+=event.text;
       await record("event",{type:"text.delta",turnId,delta:event.text});yield {type:"text.delta",turnId,delta:event.text};
