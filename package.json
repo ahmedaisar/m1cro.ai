@@ -15,8 +15,8 @@
     "test:watch": "vitest",
     "cli": "pnpm --filter @m1cro/cli dev",
     "cli:build": "pnpm --filter @m1cro/cli build",
-    "web:dev": "pnpm --filter @m1cro/web dev",
-    "web:build": "pnpm --filter @m1cro/web build"
+    "web:dev": "npm --prefix apps/web run dev",
+    "web:build": "npm --prefix apps/web run build"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
