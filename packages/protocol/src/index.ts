@@ -10,3 +10,41 @@ export interface ToolCall {id:string;name:string;input:unknown}
 export type ModelEvent={type:"text";text:string}|{type:"tool_call";call:ToolCall}|{type:"done";stopReason?:string};
 export interface ModelMessage {role:"system"|"user"|"assistant"|"tool";content:string;toolCallId?:string;name?:string;toolCalls?:ToolCall[]}
 export interface ModelRequest {model:string;messages:ModelMessage[];tools:Array<{name:string;description:string;inputSchema:unknown}>;signal:AbortSignal}
+
+/** Stable wire contract shared by CLI, web, desktop and remote runtime clients. */
+export const RUNTIME_PROTOCOL_NAME = "m1cro.runtime" as const;
+export const RUNTIME_PROTOCOL_VERSION = 1 as const;
+export interface RuntimeEventEnvelope {
+  protocol: typeof RUNTIME_PROTOCOL_NAME;
+  version: typeof RUNTIME_PROTOCOL_VERSION;
+  sessionId: string;
+  sequence: number;
+  event: RuntimeEvent;
+}
+export type RuntimeCommand =
+  | { type: "turn.start"; requestId: string; sessionId: string; prompt: string }
+  | { type: "turn.cancel"; requestId: string; sessionId: string; turnId: string }
+  | { type: "approval.respond"; requestId: string; sessionId: string; turnId: string; callId: string; decision: "approve" | "reject"; reason?: string };
+
+/** Adds stable session correlation and monotonically increasing per-session sequence numbers. */
+export class RuntimeEventSequencer {
+  private readonly sequences = new Map<string, number>();
+  wrap(sessionId: string, event: RuntimeEvent): RuntimeEventEnvelope {
+    if (!sessionId.trim()) throw new Error("sessionId must not be empty");
+    const sequence = (this.sequences.get(sessionId) ?? 0) + 1;
+    this.sequences.set(sessionId, sequence);
+    return { protocol: RUNTIME_PROTOCOL_NAME, version: RUNTIME_PROTOCOL_VERSION, sessionId, sequence, event };
+  }
+  reset(sessionId: string): void { this.sequences.delete(sessionId); }
+}
+
+export function isRuntimeEventEnvelope(value: unknown): value is RuntimeEventEnvelope {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<RuntimeEventEnvelope>;
+  return candidate.protocol === RUNTIME_PROTOCOL_NAME
+    && candidate.version === RUNTIME_PROTOCOL_VERSION
+    && typeof candidate.sessionId === "string" && candidate.sessionId.length > 0
+    && Number.isSafeInteger(candidate.sequence) && (candidate.sequence ?? 0) > 0
+    && !!candidate.event && typeof candidate.event === "object"
+    && ["text.delta", "tool.call", "tool.result", "turn.status", "approval.required", "approval.resolved"].includes(String((candidate.event as { type?: unknown }).type));
+}
