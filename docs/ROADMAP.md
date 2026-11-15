@@ -1,8 +1,10 @@
 # m1cro.ai implementation roadmap
 
-## Delivery status — 2026-11-15
+## Delivery status — 2026-11-16
 
-The initial runtime foundation was merged through PRs #1–#6. Follow-up milestones added the normalized model catalog (PR #9), OpenAI-compatible model discovery (PR #10), Anthropic/Ollama adapters (PR #12), capability evaluation (PR #13), and CLI provider selection (PR #14). This remains a **foundation milestone, not completion of the MVP**. The CLI now supports all three provider families; model discovery is being exposed through a common CLI command.
+The initial runtime foundation was merged through PRs #1–#6. Follow-up milestones added the normalized model catalog (PR #9), OpenAI-compatible model discovery (PR #10), Anthropic/Ollama adapters (PR #12), capability evaluation (PR #13), CLI provider selection (PR #14), runtime-level capability-aware model selection (PR #16), the versioned runtime client protocol (PR #17) and the initial Next.js web workspace shell (PR #18).
+
+The current state is a **runtime foundation plus an unconnected web shell, not a complete local CLI or web MVP**. Baseline validation on 2026-11-16 passed: root typecheck, 70 unit tests across 10 files, root TypeScript build, web typecheck and Next.js production build.
 
 The source-provenance assessment is documented in `docs/research/license-provenance-audit.md`. It is an engineering risk assessment, not legal clearance. Reuse of OpenClaude/Verboo source remains blocked unless qualified legal review approves it.
 
@@ -43,9 +45,16 @@ The source-provenance assessment is documented in `docs/research/license-provena
 ## Phase 3 — Workspace and client protocol
 
 - [x] Versioned runtime event protocol and per-session event sequencing (PR #17).
-- [x] Initial Next.js web workspace shell (PR #18); project/session data and runtime bridge remain open.
-- [ ] Attach to and observe active runtime sessions.
+- [x] Initial Next.js web workspace shell (PR #18).
+- [x] Align the primary Vercel `m1cro.ai` project with the Next.js app root (`apps/web`), Node.js 22 and npm build commands.
+- [ ] Define and implement the HTTP/SSE transport adapter for the existing runtime protocol. See [web runtime bridge plan](architecture/web-runtime-bridge.md).
+- [ ] Add a Node.js runtime host around the shared `AgentRuntime`; do not create a second agent loop in Next.js.
+- [ ] Attach to, observe, cancel and resume active runtime sessions from the web client.
+- [ ] Render streamed assistant output, tool activity and explicit approval requests.
+- [ ] Replace sample dashboard content with authenticated/API-backed projects and sessions.
 - [ ] Browser/editor integration foundations.
+
+**Phase 3 is in progress.** The web app currently provides a first-run browser-local workspace shell; it does not yet execute coding sessions. Do not label it a functional coding-agent client until the real runtime bridge acceptance criteria pass.
 
 ## Phase 4 — Hosted platform
 
@@ -67,3 +76,4 @@ The source-provenance assessment is documented in `docs/research/license-provena
 - Keep live-provider, PTY, installed-package, browser and visual checks guarded or in release validation; do not make them a routine feature-branch bottleneck.
 - Do not claim a sandbox guarantee until the executor and OS isolation boundary are independently tested.
 - Do not claim full MVP completion while the Phase 1 and Phase 2 items above remain open.
+- Validate Vercel preview deployments before any production promotion; the primary `m1cro.ai` project must use `apps/web` as its root directory.
