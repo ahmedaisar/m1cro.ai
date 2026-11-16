@@ -8,6 +8,8 @@ import type { RuntimeProjectRegistry } from "./projects.js";
 export interface RuntimeHostOptions {
   createAgent: (approval: ApprovalController, sessionStore: SessionStore, workspaceRoot?: string) => AgentRuntime;
   projectStore?: RuntimeProjectRegistry;
+  providerStatus?: () => Record<string, unknown> | Promise<Record<string, unknown>>;
+  updateProviderConfig?: (config: unknown) => Promise<Record<string, unknown>>;
   sessionStore: SessionStore;
   registryStore?: RuntimeSessionRegistry;
   authenticate: (token: string) => Promise<string | null> | string | null;
@@ -98,6 +100,16 @@ export class RuntimeHost {
       }
       const principal = await this.principal(req);
       if (!principal) { this.send(res, 401, { error: "Unauthorized" }); return; }
+      if (req.method === "GET" && req.url === "/v1/provider/status") {
+        this.send(res, 200, { provider: await this.options.providerStatus?.() ?? { configured: false } }); return;
+      }
+      if (req.method === "POST" && req.url === "/v1/provider/config") {
+        if (!this.options.updateProviderConfig) { this.send(res, 503, { error: "Provider configuration is not enabled" }); return; }
+        const body = await this.readJson(req);
+        try { this.send(res, 200, { provider: await this.options.updateProviderConfig(body) }); }
+        catch (error) { this.send(res, 400, { error: error instanceof Error ? error.message : "Invalid provider configuration" }); }
+        return;
+      }
       if (req.method === "GET" && req.url === "/v1/projects") {
         if (!this.options.projectStore) { this.send(res, 404, { error: "Project registry is not configured" }); return; }
         this.send(res, 200, { projects: await this.options.projectStore.list(principal) }); return;
