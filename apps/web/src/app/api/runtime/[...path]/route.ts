@@ -1,10 +1,13 @@
 import { isSameOriginRequest, requestHasSession } from "@/lib/auth";
+import { ensureRuntime } from "@/lib/runtime-manager";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 type RouteContext = { params: Promise<{ path: string[] }> };
 
 function validPath(parts: string[]): boolean {
   if (parts.length === 2 && parts[0] === "v1" && (parts[1] === "sessions" || parts[1] === "projects")) return true;
+  if (parts.length === 3 && parts[0] === "v1" && parts[1] === "provider" && (parts[2] === "status" || parts[2] === "config")) return true;
   if (parts.length === 3 && parts[0] === "v1" && parts[1] === "sessions" && /^[A-Za-z0-9_-]{1,80}$/.test(parts[2])) return true;
   return parts.length === 4
     && parts[0] === "v1"
@@ -15,13 +18,13 @@ function validPath(parts: string[]): boolean {
 async function proxy(request: Request, context: RouteContext): Promise<Response> {
   if (!requestHasSession(request)) return Response.json({ error: "Unauthorized" }, { status: 401 });
   if (!isSameOriginRequest(request)) return Response.json({ error: "Origin not allowed" }, { status: 403 });
-  const base = process.env.M1CRO_RUNTIME_URL;
   const token = process.env.M1CRO_RUNTIME_TOKEN;
-  if (!base || !token || token.length < 32) {
+  if (!token || token.length < 32) {
     return Response.json({ error: "Runtime connection is not configured on the server" }, { status: 503 });
   }
   let runtimeBase: URL;
-  try { runtimeBase = new URL(base); } catch { return Response.json({ error: "Invalid runtime URL configuration" }, { status: 500 }); }
+  try { runtimeBase = new URL(await ensureRuntime(request.headers.get("x-vercel-oidc-token"))); }
+  catch (error) { return Response.json({ error: error instanceof Error ? error.message : "Runtime unavailable" }, { status: 503 }); }
   if (runtimeBase.username || runtimeBase.password || runtimeBase.search || runtimeBase.hash) {
     return Response.json({ error: "Runtime URL must not contain credentials, query parameters or fragments" }, { status: 500 });
   }
