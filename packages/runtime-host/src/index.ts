@@ -131,7 +131,8 @@ export class RuntimeHost {
       if (!match) { this.send(res, 404, { error: "Not found" }); return; }
       const [, sessionId, resource] = match;
       const session = this.sessions.get(sessionId!);
-      if (!session || !await this.options.authorizeSession(principal, sessionId!, resource === "commands" ? "write" : "read")) { this.send(res, 404, { error: "Session not found" }); return; }
+      const sessionProject = session && this.options.projectStore ? await this.options.projectStore.get(session.projectId) : undefined;
+      if (!session || (this.options.projectStore && (!sessionProject || sessionProject.ownerId !== principal)) || !await this.options.authorizeSession(principal, sessionId!, resource === "commands" ? "write" : "read")) { this.send(res, 404, { error: "Session not found" }); return; }
       if (!resource && req.method === "GET") { this.send(res, 200, { session }); return; }
       if (resource === "history" && req.method === "GET") {
         const query = new URL(req.url ?? "/", "http://localhost").searchParams;
@@ -169,7 +170,7 @@ export class RuntimeHost {
       const done = (async () => {
         try {
           const project = await this.options.projectStore?.get(session.projectId);
-          if (this.options.projectStore && (!project || project.ownerId !== session.ownerId)) throw new Error("Project workspace is unavailable");
+          if (this.options.projectStore && (!project || project.ownerId !== session.ownerId)) throw new Error("Workspace unavailable");
           const agent = this.options.createAgent(approval, this.options.sessionStore, project?.workspacePath);
           for await (const event of agent.run({ sessionId: session.id, prompt: body.prompt, signal: controller.signal })) {
             turnId ||= event.turnId;
