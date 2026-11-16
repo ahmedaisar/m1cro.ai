@@ -12,9 +12,10 @@ import { JsonlRuntimeSessionRegistry } from "./registry.js";
 const store = { append: async () => {}, read: async () => [] } as SessionStore;
 const hosts: RuntimeHost[] = [];
 afterEach(async () => { await Promise.all(hosts.splice(0).map(host => host.close())); });
-async function setup(events: RuntimeEvent[] = [], waitForApproval = false) {
+async function setup(events: RuntimeEvent[] = [], waitForApproval = false, probeProvider?: () => Promise<Record<string, unknown>>) {
   const host = new RuntimeHost({
     sessionStore: store,
+    ...(probeProvider ? { probeProvider } : {}),
     createAgent: approval => ({
       async *run(input: { signal?: AbortSignal }) {
         for (const event of events) yield event;
@@ -170,4 +171,21 @@ describe("RuntimeHost", () => {
     ] });
     expect((await fetch(base + "/v1/sessions/" + id + "/history?limit=0", { headers })).status).toBe(400);
   });
+  it("authenticates provider probes and returns only the probe result", async () => {
+    const { base, headers } = await setup([], false, async () => ({
+      ok: true,
+      connectivity: "connected",
+      model: "test-model",
+      latencyMs: 42,
+      responseReceived: true,
+    }));
+    const unauthorized = await fetch(base + "/v1/provider/probe", { method: "POST" });
+    expect(unauthorized.status).toBe(401);
+    const response = await fetch(base + "/v1/provider/probe", { method: "POST", headers });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      probe: { ok: true, connectivity: "connected", model: "test-model", latencyMs: 42, responseReceived: true },
+    });
+  });
+
 });
