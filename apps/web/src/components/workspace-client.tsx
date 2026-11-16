@@ -7,6 +7,7 @@ type RuntimeEvent = { type: string; turnId?: string; [key: string]: unknown };
 type RuntimeEnvelope = { protocol: string; version: number; sessionId: string; sequence: number; event: RuntimeEvent };
 type RuntimeSession = { id: string; projectId: string; ownerId: string; createdAt: string; updatedAt: string; status: string; activeTurnId?: string };
 type RuntimeProject = { id: string; name: string; ownerId: string; createdAt: string; updatedAt: string };
+type ProviderStatus = { kind?: string; model?: string; baseUrl?: string; authenticationRequired?: boolean; credentialConfigured?: boolean; connectivity?: string };
 type ToolActivity = { callId: string; name: string; input?: unknown; output?: unknown; isError?: boolean };
 type TranscriptItem = { timestamp: string; data: { role: "user" | "assistant" | "tool"; content: string; toolCallId?: string } };
 
@@ -27,6 +28,13 @@ export default function WorkspaceClient() {
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState("");
   const [runtimeUnavailable, setRuntimeUnavailable] = useState(false);
+  const [providerStatus, setProviderStatus] = useState<ProviderStatus | null>(null);
+  const [providerKind, setProviderKind] = useState("openai-compatible");
+  const [providerModel, setProviderModel] = useState("gpt-4o-mini");
+  const [providerBaseUrl, setProviderBaseUrl] = useState("https://api.openai.com/v1");
+  const [providerApiKey, setProviderApiKey] = useState("");
+  const [providerSaving, setProviderSaving] = useState(false);
+  const [providerMessage, setProviderMessage] = useState("");
   const streamRef = useRef<EventSource | null>(null);
   const lastSequence = useRef(0);
 
@@ -78,6 +86,20 @@ export default function WorkspaceClient() {
     if (!activeId && data.sessions.length) setActiveId(data.sessions.some(item => item.id === saved) ? saved! : data.sessions[0].id);
   }, [activeId, router]);
 
+  useEffect(() => {
+    let active = true;
+    fetch("/api/runtime/v1/provider/status", { cache: "no-store" }).then(async response => {
+      if (!response.ok) throw new Error("Provider status unavailable");
+      const data = await response.json() as { provider?: ProviderStatus };
+      if (active) {
+        setProviderStatus(data.provider ?? null);
+        if (data.provider?.kind) setProviderKind(data.provider.kind);
+        if (data.provider?.model) setProviderModel(data.provider.model);
+        if (data.provider?.baseUrl) setProviderBaseUrl(data.provider.baseUrl);
+      }
+    }).catch(() => { if (active) setProviderStatus(null); });
+    return () => { active = false; };
+  }, []);
   useEffect(() => { refreshProjects().catch(cause => setError(cause instanceof Error ? cause.message : "Projects unavailable")); }, [refreshProjects]);
   useEffect(() => { refreshSessions().catch(cause => setError(cause instanceof Error ? cause.message : "Runtime unavailable")); }, [refreshSessions]);
   useEffect(() => {
@@ -141,6 +163,25 @@ export default function WorkspaceClient() {
     finally { setBusy(false); }
   }
 
+  async function saveProvider(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setProviderSaving(true); setProviderMessage(""); setError("");
+    try {
+      const response = await fetch("/api/runtime/v1/provider/config", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ kind: providerKind, model: providerModel, baseUrl: providerBaseUrl, apiKey: providerApiKey }),
+      });
+      const data = await response.json() as { provider?: ProviderStatus; error?: string };
+      if (!response.ok || !data.provider) throw new Error(data.error ?? "Could not save provider settings");
+      setProviderStatus(data.provider);
+      setProviderApiKey("");
+      setProviderMessage("Provider saved securely. New sessions will use this configuration.");
+    } catch (cause) {
+      setProviderMessage(cause instanceof Error ? cause.message : "Could not save provider settings");
+    } finally { setProviderSaving(false); }
+  }
+
   async function sendPrompt(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!activeId || !prompt.trim() || busy) return;
@@ -192,7 +233,7 @@ export default function WorkspaceClient() {
         <div className="sidebar-bottom"><div className="runtime-state"><span className={"connection-dot " + (connected ? "online" : "")}></span><span>{connected ? "Runtime connected" : "Runtime disconnected"}</span></div><button className="user-row" onClick={logout}><span className="user-avatar">U</span><span><strong>Workspace user</strong><small>Sign out</small></span><span className="chevron">↗</span></button></div>
       </aside>
       <section className="workspace-main">
-        <header className="workspace-topbar"><div><span className="breadcrumb-muted">Workspace</span><span className="breadcrumb-sep">/</span><strong>{activeSession ? activeSession.projectId : "New session"}</strong></div><div className="topbar-right"><span className="runtime-pill"><i className={connected ? "online" : ""}></i>{connected ? "Connected" : "Waiting for runtime"}</span><button className="secondary-button" onClick={logout}>Sign out</button></div></header>
+        <header className="workspace-topbar"><div><span className="breadcrumb-muted">Workspace</span><span className="breadcrumb-sep">/</span><strong>{activeSession ? activeSession.projectId : "New session"}</strong></div><div className="topbar-right"><span className="provider-pill" title={providerStatus?.baseUrl ?? "Provider status unavailable"}>{providerStatus ? (providerStatus.kind ?? "Provider") + " · " + (providerStatus.model ?? "No model") + (providerStatus.authenticationRequired && !providerStatus.credentialConfigured ? " · API key missing" : " · " + (providerStatus.connectivity === "not_checked" ? "not tested" : "configured")) : "Provider status unavailable"}</span><details className="provider-settings"><summary>Configure</summary><form className="provider-settings-panel" onSubmit={saveProvider}><label>Provider<select value={providerKind} onChange={event => setProviderKind(event.target.value)}><option value="openai-compatible">OpenAI-compatible</option><option value="anthropic">Anthropic</option><option value="ollama">Ollama</option></select></label><label>Model<input value={providerModel} onChange={event => setProviderModel(event.target.value)} required maxLength={160} placeholder="Model identifier" /></label><label>API base URL<input value={providerBaseUrl} onChange={event => setProviderBaseUrl(event.target.value)} required type="url" placeholder="https://api.openai.com/v1" /></label><label>API key {providerKind === "ollama" ? "(optional)" : ""}<input type="password" autoComplete="new-password" value={providerApiKey} onChange={event => setProviderApiKey(event.target.value)} placeholder={providerKind === "ollama" ? "Optional" : "Enter provider API key"} required={providerKind !== "ollama"} /></label><button className="primary-button" type="submit" disabled={providerSaving}>{providerSaving ? "Saving…" : "Save provider"}</button>{providerMessage && <small role="status">{providerMessage}</small>}</form></details><span className="runtime-pill"><i className={connected ? "online" : ""}></i>{connected ? "Connected" : "Waiting for runtime"}</span><button className="secondary-button" onClick={logout}>Sign out</button></div></header>
         <div className="session-workarea">
           {!activeId ? <div className="welcome-panel"><div className="welcome-orb">m·</div><p className="eyebrow">ONE WORKSPACE. ANY MODEL.</p><h1>What are we building?</h1><p>Start a session against your configured runtime workspace.</p><div className="new-session-row"><select aria-label="Select project" value={selectedProjectId} onChange={event => setSelectedProjectId(event.target.value)} disabled={!projects.length}>{projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select><input aria-label="New project name" value={newProjectName} onChange={event => setNewProjectName(event.target.value)} placeholder="New project name" /><button className="secondary-button" onClick={createProject} disabled={busy || !newProjectName.trim()}>Add</button><button className="primary-button" onClick={createSession} disabled={busy || !selectedProjectId}>New session</button></div></div> :
           <div className="conversation">
