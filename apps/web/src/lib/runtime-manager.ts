@@ -89,7 +89,7 @@ async function wakeRuntime(oidcToken: string | null): Promise<string> {
           "  sleep 0.25",
           "done",
           "exit 75"
-        ].join(\"\\n\")],
+        ].join("\n")],
         cwd,
         env,
         wait: true,
