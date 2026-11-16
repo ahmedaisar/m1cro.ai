@@ -85,3 +85,10 @@ The source-provenance assessment is documented in `docs/research/license-provena
 The next runtime milestone introduces an authenticated project registry. Projects receive generated IDs and private directories under `M1CRO_PROJECTS_DIR`; clients select registered projects instead of submitting filesystem paths or arbitrary project identifiers. Sessions are bound to the selected project record, and the runtime resolves the workspace root server-side before constructing filesystem tools. The initial local runtime seeds a `default` project from the trusted `M1CRO_WORKSPACE_ROOT` setting for backward compatibility.
 
 Acceptance requirements: persistent project metadata, owner-scoped list/create, path containment checks, symlink escape rejection, session-to-project binding, and web project selection/creation.
+
+## Runtime lifecycle and provider configuration
+
+The web BFF now manages the named persistent Vercel Sandbox runtime using Vercel OIDC: it checks health, resumes a stopped sandbox from its latest snapshot, starts the Node runtime when needed, and waits for readiness before proxying requests. The workspace exposes provider status and a secure provider configuration form for OpenAI-compatible, Anthropic and Ollama endpoints. Provider credentials are encrypted at rest with AES-256-GCM using the server-only `M1CRO_PROVIDER_CONFIG_KEY`; status never returns secret material. This remains a demand-started Sandbox, not an always-on service. Distributed lifecycle leases and multi-user execution isolation remain production requirements.
+
+
+The Vercel project must have Secure Backend Access with OIDC Federation enabled for automatic sandbox resume.
