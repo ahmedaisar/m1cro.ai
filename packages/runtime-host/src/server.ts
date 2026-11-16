@@ -66,7 +66,11 @@ export async function startRuntimeHost(): Promise<void> {
     projectStore,
     providerStatus: () => providerStatus(activeProviderConfig),
     updateProviderConfig: async value => {
-      const next = validateProviderConfig(value);
+      const input = value && typeof value === "object" ? { ...(value as Record<string, unknown>) } : value;
+      if (input && typeof input === "object" && (input as Record<string, unknown>).kind === activeProviderConfig.kind && !(typeof (input as Record<string, unknown>).apiKey === "string" && ((input as Record<string, unknown>).apiKey as string).trim()) && activeProviderConfig.apiKey) {
+        (input as Record<string, unknown>).apiKey = activeProviderConfig.apiKey;
+      }
+      const next = validateProviderConfig(input);
       await providerConfigStore.save(next);
       activeProviderConfig = next;
       activeProvider = createProvider(next);
