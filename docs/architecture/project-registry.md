@@ -19,4 +19,8 @@ The browser submits a registered `projectId` only. It never supplies a workspace
 
 ## Filesystem safety
 
-Project names are restricted to a conservative character set. Workspace paths are generated from random IDs, resolved on the server, and checked against the real projects-root path. The registry rejects symbolic-link roots and project directories whose resolved path escapes the configured root. The web BFF allowlists the project endpoints and retains the runtime bear¶»§q«^
+Project names are restricted to a conservative character set. Workspace paths are generated from random IDs, resolved on the server, and checked against the real projects-root path. The registry rejects symbolic-link roots and project directories whose resolved path escapes the configured root. The web BFF allowlists the project endpoints and retains the runtime bearer token server-side.
+
+## Operational note
+
+The JSONL registry is appropriate for the current single-runtime, single-writer deployment. A horizontally scaled multi-user service should move project/session metadata to a transactional database and use isolated per-project execution sandboxes before public multi-tenant exposure.

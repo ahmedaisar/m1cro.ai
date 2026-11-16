@@ -24,4 +24,26 @@ describe("JsonlRuntimeProjectRegistry", () => {
   });
 
   it("rejects traversal and unsafe project names", async () => {
-    const { registry } = awa¶»§q«^
+    const { registry } = await fixture();
+    await expect(registry.create("alice", "../outside")).rejects.toThrow("Project name");
+    await expect(registry.create("alice", "/tmp/escape")).rejects.toThrow("Project name");
+    await expect(registry.create("alice", "..\\\\outside")).rejects.toThrow("Project name");
+  });
+
+  it("rejects a projects root that is a symlink", async () => {
+    const root = await mkdtemp(join(tmpdir(), "m1cro-project-root-")); roots.push(root);
+    const outside = await mkdtemp(join(tmpdir(), "m1cro-outside-")); roots.push(outside);
+    const link = join(root, "linked-workspaces"); await symlink(outside, link);
+    const registry = new JsonlRuntimeProjectRegistry(join(root, "data", "projects.jsonl"), link);
+    await expect(registry.create("alice", "Escaped")).rejects.toThrow("real directory");
+  });
+
+  it("rejects a persisted workspace that is replaced by a symlink escape", async () => {
+    const { root, registry } = await fixture();
+    const created = await registry.create("alice", "Safe");
+    const outside = await mkdtemp(join(tmpdir(), "m1cro-escaped-")); roots.push(outside);
+    await rm(created.workspacePath, { recursive: true, force: true });
+    await symlink(outside, created.workspacePath);
+    await expect(registry.get(created.id)).rejects.toThrow("escaped");
+  });
+});
