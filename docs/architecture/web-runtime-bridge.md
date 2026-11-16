@@ -1,6 +1,6 @@
 # Web runtime bridge — implementation plan
 
-**Status:** Approved implementation direction; not yet implemented  
+**Status:** Architecture approved; initial single-user Node.js transport host implemented; web client integration remains open
 **Scope:** Phase 3 — workspace and client protocol, with the first usable web coding-session vertical slice
 
 ## Objective

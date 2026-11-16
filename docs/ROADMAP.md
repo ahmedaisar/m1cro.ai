@@ -47,14 +47,15 @@ The source-provenance assessment is documented in `docs/research/license-provena
 - [x] Versioned runtime event protocol and per-session event sequencing (PR #17).
 - [x] Initial Next.js web workspace shell (PR #18).
 - [x] Align the primary Vercel `m1cro.ai` project with the Next.js app root (`apps/web`), Node.js 22 and npm build commands.
-- [ ] Define and implement the HTTP/SSE transport adapter for the existing runtime protocol. See [web runtime bridge plan](architecture/web-runtime-bridge.md).
-- [ ] Add a Node.js runtime host around the shared `AgentRuntime`; do not create a second agent loop in Next.js.
+- [x] Implement the initial HTTP/SSE transport adapter and Node.js host around the shared `AgentRuntime`; do not create a second agent loop in Next.js. See [runtime host](architecture/runtime-host.md).
+- [ ] Persist the session registry, ownership metadata, active-turn state and event replay cursor across host restarts.
+- [ ] Add production identity/session authorization and a server-side web transport; the current host is single-user/local-development only.
 - [ ] Attach to, observe, cancel and resume active runtime sessions from the web client.
 - [ ] Render streamed assistant output, tool activity and explicit approval requests.
 - [ ] Replace sample dashboard content with authenticated/API-backed projects and sessions.
 - [ ] Browser/editor integration foundations.
 
-**Phase 3 is in progress.** The web app currently provides a first-run browser-local workspace shell; it does not yet execute coding sessions. Do not label it a functional coding-agent client until the real runtime bridge acceptance criteria pass.
+**Phase 3 is in progress.** The initial single-user Node.js runtime host now exists and is covered by deterministic transport tests. The web app still provides a browser-local workspace shell; it is not yet connected to the host and does not yet execute coding sessions. Do not label it a functional coding-agent client until the real runtime bridge acceptance criteria pass.
 
 ## Phase 4 — Hosted platform
 
