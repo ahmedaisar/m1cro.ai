@@ -29,6 +29,7 @@ function validRecord(value: unknown): value is RuntimeProjectRecord {
 
 export class JsonlRuntimeProjectRegistry implements RuntimeProjectRegistry {
   private writes: Promise<void> = Promise.resolve();
+  private creations: Promise<void> = Promise.resolve();
   private readonly file: string;
   private readonly root: string;
   constructor(file: string, projectsRoot: string) {
@@ -46,6 +47,12 @@ export class JsonlRuntimeProjectRegistry implements RuntimeProjectRegistry {
   }
 
   async create(ownerId: string, name: string): Promise<RuntimeProjectRecord> {
+    const operation = this.creations.then(() => this.createExclusive(ownerId, name));
+    this.creations = operation.then(() => undefined, () => undefined);
+    return operation;
+  }
+
+  private async createExclusive(ownerId: string, name: string): Promise<RuntimeProjectRecord> {
     const normalized = name.trim().replace(/\s+/g, " ");
     if (!ownerId || ownerId.length > 160) throw new Error("Invalid project owner");
     if (!/^[A-Za-z0-9][A-Za-z0-9 ._-]{0,63}$/.test(normalized) || normalized === "." || normalized === "..") {

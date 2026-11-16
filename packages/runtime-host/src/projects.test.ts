@@ -30,6 +30,14 @@ describe("JsonlRuntimeProjectRegistry", () => {
     await expect(registry.create("alice", "..\\\\outside")).rejects.toThrow("Project name");
   });
 
+  it("serializes concurrent creation and prevents duplicate project names", async () => {
+    const { registry } = await fixture();
+    const results = await Promise.allSettled([registry.create("alice", "Concurrent"), registry.create("alice", "Concurrent")]);
+    expect(results.filter(result => result.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter(result => result.status === "rejected")).toHaveLength(1);
+    expect(await registry.list("alice")).toHaveLength(1);
+  });
+
   it("rejects a projects root that is a symlink", async () => {
     const root = await mkdtemp(join(tmpdir(), "m1cro-project-root-")); roots.push(root);
     const outside = await mkdtemp(join(tmpdir(), "m1cro-outside-")); roots.push(outside);
