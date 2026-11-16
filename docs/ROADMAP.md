@@ -48,7 +48,7 @@ The source-provenance assessment is documented in `docs/research/license-provena
 - [x] Initial Next.js web workspace shell (PR #18).
 - [x] Align the primary Vercel `m1cro.ai` project with the Next.js app root (`apps/web`), Node.js 22 and npm build commands.
 - [x] Implement the initial HTTP/SSE transport adapter and Node.js host around the shared `AgentRuntime`; do not create a second agent loop in Next.js. See [runtime host](architecture/runtime-host.md).
-- [ ] Persist the session registry, ownership metadata, active-turn state and event replay cursor across host restarts.
+- [x] Persist session metadata and sequenced event history; rebuild the session list/replay log after restart and mark interrupted turns failed.
 - [ ] Add production identity/session authorization and a server-side web transport; the current host is single-user/local-development only.
 - [ ] Attach to, observe, cancel and resume active runtime sessions from the web client.
 - [ ] Render streamed assistant output, tool activity and explicit approval requests.

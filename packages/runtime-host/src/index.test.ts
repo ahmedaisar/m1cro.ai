@@ -1,8 +1,13 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { JsonlSessionStore } from "@m1cro/sessions";
 import { RuntimeHost } from "./index.js";
 import type { AgentRuntime } from "@m1cro/core";
 import type { SessionStore } from "@m1cro/sessions";
 import type { RuntimeEvent } from "@m1cro/protocol";
+import { JsonlRuntimeSessionRegistry } from "./registry.js";
 
 const store = { append: async () => {}, read: async () => [] } as SessionStore;
 const hosts: RuntimeHost[] = [];
@@ -78,5 +83,61 @@ describe("RuntimeHost", () => {
     expect(bad.status).toBe(400);
     const denied = await fetch(base + "/v1/sessions", { headers: { authorization: headers.authorization, origin: "https://untrusted.example" } });
     expect(denied.status).toBe(403);
+  });
+  it("restores session metadata and sequenced SSE history after a host restart", async () => {
+    const root = await mkdtemp(join(tmpdir(), "m1cro-runtime-host-"));
+    const sessionStore = new JsonlSessionStore(id => join(root, "sessions", id + ".jsonl"));
+    const registryStore = new JsonlRuntimeSessionRegistry(join(root, "runtime-sessions.jsonl"));
+    const token = "b".repeat(64);
+    const makeHost = (events: RuntimeEvent[]) => new RuntimeHost({
+      sessionStore,
+      registryStore,
+      createAgent: () => ({ async *run() { for (const event of events) yield event; } } as unknown as AgentRuntime),
+      authenticate: candidate => candidate === token ? "principal-1" : null,
+      authorizeProject: principal => principal === "principal-1",
+      authorizeSession: principal => principal === "principal-1",
+      corsOrigins: ["http://localhost:3000"],
+      port: 0,
+    });
+    const headers = { authorization: "Bearer " + token, "content-type": "application/json" };
+    const firstHost = makeHost([
+      { type: "turn.status", turnId: "turn_restart", status: "running" },
+      { type: "text.delta", turnId: "turn_restart", delta: "persisted text" },
+      { type: "turn.status", turnId: "turn_restart", status: "completed" },
+    ]);
+    const firstAddress = await firstHost.listen();
+    hosts.push(firstHost);
+    const firstBase = "http://" + firstAddress.host + ":" + firstAddress.port;
+    const sessionId = await createSession(firstBase, headers);
+    const started = await fetch(firstBase + "/v1/sessions/" + sessionId + "/commands", {
+      method: "POST", headers,
+      body: JSON.stringify({ type: "turn.start", requestId: "req_restart", sessionId, prompt: "persist this" }),
+    });
+    expect(started.status).toBe(202);
+    await new Promise(resolve => setTimeout(resolve, 50));
+    await firstHost.close();
+
+    const secondHost = makeHost([]);
+    const secondAddress = await secondHost.listen();
+    hosts.push(secondHost);
+    const secondBase = "http://" + secondAddress.host + ":" + secondAddress.port;
+    const listed = await fetch(secondBase + "/v1/sessions", { headers });
+    const sessions = (await listed.json() as { sessions: Array<{ id: string; status: string }> }).sessions;
+    expect(sessions).toContainEqual(expect.objectContaining({ id: sessionId, status: "completed" }));
+
+    const replay = await fetch(secondBase + "/v1/sessions/" + sessionId + "/events?after=0", { headers });
+    expect(replay.status).toBe(200);
+    const reader = replay.body!.getReader();
+    const decoder = new TextDecoder();
+    let output = "";
+    while (!output.includes("persisted text")) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      output += decoder.decode(chunk.value);
+    }
+    expect(output).toContain('"sequence":1');
+    expect(output).toContain('"sequence":3');
+    await reader.cancel();
+    await rm(root, { recursive: true, force: true });
   });
 });

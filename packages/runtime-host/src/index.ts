@@ -3,10 +3,12 @@ import { randomUUID } from "node:crypto";
 import { AgentRuntime, type ApprovalController, type ApprovalDecision, type ApprovalRequest } from "@m1cro/core";
 import { RuntimeEventSequencer, RUNTIME_PROTOCOL_NAME, RUNTIME_PROTOCOL_VERSION, isRuntimeEventEnvelope, type RuntimeCommand, type RuntimeEvent, type RuntimeEventEnvelope } from "@m1cro/protocol";
 import type { SessionStore } from "@m1cro/sessions";
+import type { RuntimeSessionRegistry, RuntimeSessionRecord } from "./registry.js";
 
 export interface RuntimeHostOptions {
   createAgent: (approval: ApprovalController, sessionStore: SessionStore) => AgentRuntime;
   sessionStore: SessionStore;
+  registryStore?: RuntimeSessionRegistry;
   /** Resolve identity from an opaque bearer token. Return null to reject. */
   authenticate: (token: string) => Promise<string | null> | string | null;
   /** Authorize a principal against a session id, including read/write access. */
@@ -20,7 +22,7 @@ export interface RuntimeHostOptions {
   host?: string;
   port?: number;
 }
-interface SessionMeta { id: string; projectId: string; ownerId: string; createdAt: string; updatedAt: string; activeTurnId: string | undefined; status: "idle" | "running" | "awaiting_approval" | "completed" | "failed" | "cancelled" }
+type SessionMeta = RuntimeSessionRecord;
 interface PendingTurn { controller: AbortController; turnId: string; done: Promise<void> }
 interface DeferredApproval { request: ApprovalRequest; resolve: (decision: ApprovalDecision) => void; reject: (error: Error) => void; settled: boolean }
 const ID = /^[A-Za-z0-9_-]{1,80}$/;
@@ -46,6 +48,7 @@ export class RuntimeHost {
   }
   async listen(): Promise<{ host: string; port: number }> {
     if (this.server) throw new Error("Runtime host is already listening");
+    await this.restoreSessions();
     this.server = createServer((req, res) => { void this.handle(req, res); });
     const host = this.options.host ?? "127.0.0.1", port = this.options.port ?? 8787;
     await new Promise<void>((resolveListen, reject) => {
@@ -55,6 +58,24 @@ export class RuntimeHost {
     const address = this.server.address();
     if (!address || typeof address === "string") throw new Error("Runtime host failed to bind TCP address");
     return { host, port: address.port };
+  }
+  private async restoreSessions(): Promise<void> {
+    if (!this.options.registryStore) return;
+    for (const stored of await this.options.registryStore.list()) {
+      const session: SessionMeta = { ...stored };
+      this.sessions.set(session.id, session);
+      const replay: RuntimeEventEnvelope[] = [];
+      for (const record of await this.options.sessionStore.read(session.id)) {
+        if (record.kind !== "event" || !isRuntimeEventEnvelope(record.data) || record.data.sessionId !== session.id) continue;
+        replay.push(this.sequencer.wrap(session.id, record.data.event));
+      }
+      if (replay.length > this.maxEvents) replay.splice(0, replay.length - this.maxEvents);
+      this.events.set(session.id, replay);
+      if (session.status === "running" || session.status === "awaiting_approval") {
+        session.status = "failed"; session.activeTurnId = undefined; session.updatedAt = new Date().toISOString();
+        await this.options.registryStore.save(session);
+      }
+    }
   }
   async close(): Promise<void> {
     for (const turn of this.pending.values()) turn.controller.abort(new Error("Runtime host shutting down"));
@@ -91,6 +112,7 @@ export class RuntimeHost {
         const now = new Date().toISOString();
         const meta: SessionMeta = { id, projectId: body.projectId, ownerId: principal, createdAt: now, updatedAt: now, activeTurnId: undefined, status: "idle" };
         this.sessions.set(id, meta); this.events.set(id, []);
+        await this.options.registryStore?.save(meta);
         this.send(res, 201, { session: meta }); return;
       }
       const match = /^\/v1\/sessions\/([A-Za-z0-9_-]{1,80})(?:\/(events|commands))?$/.exec(new URL(req.url ?? "/", "http://localhost").pathname);
@@ -129,16 +151,23 @@ export class RuntimeHost {
           const agent = this.options.createAgent(approval, this.options.sessionStore);
           for await (const event of agent.run({ sessionId: session.id, prompt: body.prompt, signal: controller.signal })) {
             turnId ||= event.turnId;
+            const previousStatus = session.status;
+            const previousTurnId = session.activeTurnId;
             session.status = event.type === "turn.status" ? mapStatus(event.status) : session.status;
             if (event.type === "approval.required") session.status = "awaiting_approval";
             session.activeTurnId = turnId || session.activeTurnId;
-            this.publish(session.id, event);
+            if (session.status !== previousStatus || session.activeTurnId !== previousTurnId) {
+              session.updatedAt = new Date().toISOString();
+              await this.options.registryStore?.save(session);
+            }
+            await this.publish(session.id, event);
           }
         } catch (error) {
-          this.publish(session.id, { type: "turn.status", turnId: turnId || "unknown", status: "failed", reason: safeMessage(error) });
-          session.status = "failed";
+          session.status = controller.signal.aborted ? "cancelled" : "failed";
+          try { await this.publish(session.id, { type: "turn.status", turnId: turnId || "unknown", status: session.status, reason: safeMessage(error) }); } catch {}
         } finally {
           session.activeTurnId = undefined; session.updatedAt = new Date().toISOString();
+          await this.options.registryStore?.save(session);
           this.pending.delete(session.id);
         }
       })();
@@ -178,12 +207,13 @@ export class RuntimeHost {
     if (pending.settled) return; pending.settled = true;
     if (error) pending.reject(error); else if (decision) pending.resolve(decision);
   }
-  private publish(sessionId: string, event: RuntimeEvent): void {
+  private async publish(sessionId: string, event: RuntimeEvent): Promise<void> {
     const envelope = this.sequencer.wrap(sessionId, event);
     if (!isRuntimeEventEnvelope(envelope)) throw new Error("Internal runtime event failed protocol validation");
     const list = this.events.get(sessionId) ?? [];
     list.push(envelope); if (list.length > this.maxEvents) list.splice(0, list.length - this.maxEvents);
     this.events.set(sessionId, list);
+    await this.options.sessionStore.append(sessionId, { id: randomUUID(), timestamp: new Date().toISOString(), kind: "event", data: envelope });
   }
   private async streamEvents(req: IncomingMessage, res: ServerResponse, sessionId: string): Promise<void> {
     const lastEventId = req.headers["last-event-id"];

@@ -7,6 +7,7 @@ import { AnthropicProvider, OllamaProvider, OpenAICompatibleProvider, type Model
 import { JsonlSessionStore } from "@m1cro/sessions";
 import { registerFilesystemTools, ToolRegistry, Workspace } from "@m1cro/tools";
 import { createLocalRuntimeHost } from "./index.js";
+import { JsonlRuntimeSessionRegistry } from "./registry.js";
 
 type ProviderKind = "openai-compatible" | "anthropic" | "ollama";
 const defaults: Record<ProviderKind, { baseUrl: string; model: string }> = {
@@ -44,10 +45,12 @@ export async function startRuntimeHost(): Promise<void> {
   await preparePrivateDirectory(storageRoot);
   await preparePrivateDirectory(sessionRoot);
   const sessionStore = new JsonlSessionStore(id => path.join(sessionRoot, id + ".jsonl"));
+  const registryStore = new JsonlRuntimeSessionRegistry(path.join(storageRoot, "runtime-sessions.jsonl"));
   const configured = providerFromEnvironment();
   const host = createLocalRuntimeHost({
     token,
     sessionStore,
+    registryStore,
     corsOrigins: (process.env.M1CRO_CORS_ORIGINS ?? "http://localhost:3000").split(",").map(value => value.trim()).filter(Boolean),
     host: process.env.M1CRO_RUNTIME_HOST ?? "127.0.0.1",
     port: Number(process.env.M1CRO_RUNTIME_PORT ?? "8787"),

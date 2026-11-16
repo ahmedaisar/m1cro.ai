@@ -19,7 +19,7 @@ For Ollama, set M1CRO_PROVIDER=ollama and M1CRO_BASE_URL as needed. For Anthropi
 | M1CRO_RUNTIME_PORT | 8787 | HTTP port |
 | M1CRO_CORS_ORIGINS | http://localhost:3000 | Explicit comma-separated browser origins |
 | M1CRO_WORKSPACE_ROOT | current directory | Workspace root for filesystem tools |
-| M1CRO_DATA_DIR | ~/.m1cro | Private local transcript storage |
+| M1CRO_DATA_DIR | ~/.m1cro | Private local transcript and runtime registry storage |
 | M1CRO_PROVIDER | openai-compatible | openai-compatible, anthropic or ollama |
 | M1CRO_MODEL | provider default | Model identifier |
 | M1CRO_BASE_URL | provider default | Provider API base URL |
@@ -39,6 +39,6 @@ The host authenticates bearer tokens, checks project/session authorization callb
 
 - This entry point is a single-user local development host. The static bearer token is intended for a trusted local caller or a server-side adapter. Never place it in browser JavaScript, commit it, or expose this HTTP listener directly to the public internet.
 - Put a TLS-terminating reverse proxy and a real identity/session-aware server-side gateway in front of any remote deployment. Replace the local token authenticator and authorization callbacks before multi-user use.
-- Conversation transcripts are persisted by the existing JSONL SessionStore. The host session index, ownership metadata, active-turn state and SSE event replay buffer are currently in memory and are lost on process restart. Durable session registry/event replay is a required next step.
+- Conversation transcripts and versioned runtime event envelopes are persisted in per-session JSONL files. Session ownership/status snapshots are stored in a private append-only runtime registry. On restart, the host rebuilds the session list and replay sequence; any turn that was still running or awaiting approval is marked failed/interrupted rather than resumed. The provider turn itself is not transparently resumed.
 - Workspace filesystem tools are constrained to the configured workspace root, but this first host does not provide an isolated remote executor. Do not register shell/process tools or treat this as a multi-tenant sandbox.
 - The web workspace is not yet wired to this service. A Next.js server-side authenticated transport/BFF and real browser session UI remain Phase 3 work.
