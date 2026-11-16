@@ -7,6 +7,7 @@ type RuntimeEvent = { type: string; turnId?: string; [key: string]: unknown };
 type RuntimeEnvelope = { protocol: string; version: number; sessionId: string; sequence: number; event: RuntimeEvent };
 type RuntimeSession = { id: string; projectId: string; ownerId: string; createdAt: string; updatedAt: string; status: string; activeTurnId?: string };
 type ToolActivity = { callId: string; name: string; input?: unknown; output?: unknown; isError?: boolean };
+type TranscriptItem = { timestamp: string; data: { role: "user" | "assistant" | "tool"; content: string; toolCallId?: string } };
 
 function shortId(id: string) { return id.slice(0, 8); }
 function timeLabel(value: string) { return new Date(value).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }); }
@@ -16,9 +17,9 @@ export default function WorkspaceClient() {
   const [sessions, setSessions] = useState<RuntimeSession[]>([]);
   const [activeId, setActiveId] = useState("");
   const [events, setEvents] = useState<RuntimeEnvelope[]>([]);
+  const [history, setHistory] = useState<TranscriptItem[]>([]);
   const [prompt, setPrompt] = useState("");
   const [projectId, setProjectId] = useState("default");
-  const [lastPrompt, setLastPrompt] = useState("");
   const [busy, setBusy] = useState(false);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState("");
@@ -27,7 +28,11 @@ export default function WorkspaceClient() {
   const lastSequence = useRef(0);
 
   const activeSession = sessions.find(session => session.id === activeId);
-  const assistantText = useMemo(() => events.filter(item => item.event.type === "text.delta").map(item => String(item.event.delta ?? "")).join(""), [events]);
+  const activeTurnId = [...events].reverse().find(item => item.event.turnId)?.event.turnId ?? activeSession?.activeTurnId;
+  const assistantText = useMemo(() => {
+    if (!activeSession || (activeSession.status !== "running" && activeSession.status !== "awaiting_approval")) return "";
+    return events.filter(item => item.event.type === "text.delta" && item.event.turnId === activeTurnId).map(item => String(item.event.delta ?? "")).join("");
+  }, [events, activeSession, activeTurnId]);
   const tools = useMemo(() => {
     const map = new Map<string, ToolActivity>();
     for (const envelope of events) {
@@ -42,7 +47,12 @@ export default function WorkspaceClient() {
   }, [events]);
   const approval = [...events].reverse().find(item => item.event.type === "approval.required" &&
     !events.some(other => other.event.type === "approval.resolved" && other.event.callId === item.event.callId))?.event;
-  const activeTurnId = [...events].reverse().find(item => item.event.turnId)?.event.turnId ?? activeSession?.activeTurnId;
+  const refreshHistory = useCallback(async (sessionId: string) => {
+    const response = await fetch("/api/runtime/v1/sessions/" + encodeURIComponent(sessionId) + "/history", { cache: "no-store" });
+    if (!response.ok) return;
+    const data = await response.json() as { messages: TranscriptItem[] };
+    setHistory(data.messages ?? []);
+  }, []);
 
   const refreshSessions = useCallback(async () => {
     const response = await fetch("/api/runtime/v1/sessions", { cache: "no-store" });
@@ -57,6 +67,10 @@ export default function WorkspaceClient() {
   }, [activeId, router]);
 
   useEffect(() => { refreshSessions().catch(cause => setError(cause instanceof Error ? cause.message : "Runtime unavailable")); }, [refreshSessions]);
+  useEffect(() => {
+    if (!activeId) { setHistory([]); return; }
+    refreshHistory(activeId).catch(() => {});
+  }, [activeId, refreshHistory]);
   useEffect(() => {
     if (!activeId) { setEvents([]); setConnected(false); return; }
     window.localStorage.setItem("m1cro-active-session", activeId);
@@ -75,11 +89,12 @@ export default function WorkspaceClient() {
         setEvents(current => [...current, envelope]);
         if (envelope.event.type === "turn.status" && ["completed", "failed", "cancelled"].includes(String(envelope.event.status))) {
           refreshSessions().catch(() => {});
+          refreshHistory(activeId).catch(() => {});
         }
       } catch { setError("Received an invalid runtime event"); }
     });
     return () => { source.close(); if (streamRef.current === source) streamRef.current = null; };
-  }, [activeId, refreshSessions]);
+  }, [activeId, refreshSessions, refreshHistory]);
 
   async function createSession() {
     setError(""); setBusy(true);
@@ -93,7 +108,7 @@ export default function WorkspaceClient() {
       setSessions(current => [data.session!, ...current]);
       setActiveId(data.session.id);
       setEvents([]);
-      setLastPrompt("");
+      setHistory([]);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not create session"); }
     finally { setBusy(false); }
   }
@@ -102,7 +117,7 @@ export default function WorkspaceClient() {
     event.preventDefault();
     if (!activeId || !prompt.trim() || busy) return;
     const value = prompt.trim();
-    setPrompt(""); setLastPrompt(value); setError(""); setBusy(true);
+    setPrompt(""); setError(""); setBusy(true);
     try {
       const response = await fetch("/api/runtime/v1/sessions/" + encodeURIComponent(activeId) + "/commands", {
         method: "POST", headers: { "content-type": "application/json" },
@@ -111,6 +126,7 @@ export default function WorkspaceClient() {
       const data = await response.json() as { error?: string };
       if (!response.ok) throw new Error(data.error ?? "Could not start turn");
       await refreshSessions();
+      await refreshHistory(activeId);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not start turn"); }
     finally { setBusy(false); }
   }
@@ -155,9 +171,12 @@ export default function WorkspaceClient() {
             <div className="conversation-heading"><div><p className="eyebrow">CODING SESSION</p><h1>{activeSession?.projectId ?? "Workspace session"}</h1><span className="session-id">Session {activeId}</span></div><div className="conversation-actions"><span className="status-chip">{activeSession?.status ?? "loading"}</span>{activeTurnId && activeSession && (activeSession.status === "running" || activeSession.status === "awaiting_approval") && <button className="secondary-button" onClick={() => sendCommand({ type: "turn.cancel", turnId: activeTurnId })}>Stop turn</button>}</div></div>
             {runtimeUnavailable && <div className="notice notice-warning">Runtime connection is not configured. Set M1CRO_RUNTIME_URL and M1CRO_RUNTIME_TOKEN in the server environment, and make sure the runtime host is reachable over HTTPS.</div>}
             {error && <div className="notice notice-error">{error}</div>}
-            {!lastPrompt && events.length === 0 && <div className="conversation-empty"><div className="welcome-orb small">m·</div><h2>Ready when you are.</h2><p>Describe a task. The shared runtime will stream its progress here.</p></div>}
-            {lastPrompt && <div className="message user-message"><div className="message-avatar">U</div><div><span className="message-label">You</span><p>{lastPrompt}</p></div></div>}
-            {assistantText && <div className="message assistant-message"><div className="message-avatar assistant-avatar">m·</div><div className="message-body"><span className="message-label">m1cro</span><p className="assistant-output">{assistantText}</p></div></div>}
+            {history.length === 0 && events.length === 0 && <div className="conversation-empty"><div className="welcome-orb small">m·</div><h2>Ready when you are.</h2><p>Describe a task. The shared runtime will stream its progress here.</p></div>}
+            {history.map((message, index) => <div className={"message " + (message.data.role === "user" ? "user-message" : "assistant-message")} key={message.timestamp + "-" + index}>
+              <div className={"message-avatar " + (message.data.role === "assistant" ? "assistant-avatar" : "")}>{message.data.role === "user" ? "U" : message.data.role === "tool" ? "⌘" : "m·"}</div>
+              <div className="message-body"><span className="message-label">{message.data.role === "user" ? "You" : message.data.role === "tool" ? "Tool result" : "m1cro"}</span><p className="assistant-output">{message.data.content}</p></div>
+            </div>)}
+            {assistantText && <div className="message assistant-message"><div className="message-avatar assistant-avatar">m·</div><div className="message-body"><span className="message-label">m1cro · streaming</span><p className="assistant-output">{assistantText}</p></div></div>}
             {tools.map(tool => <div className="tool-card" key={tool.callId}><div className="tool-card-head"><span className="tool-symbol">⌘</span><strong>{tool.name}</strong><span className="tool-state">{tool.output === undefined ? "Running" : tool.isError ? "Failed" : "Completed"}</span></div><pre>{JSON.stringify(tool.output ?? tool.input ?? {}, null, 2)}</pre></div>)}
             {approval && <div className="approval-card"><div><strong>Approval required · {String(approval.toolName)}</strong><p>{String(approval.risk)} permission for this tool call</p><pre>{JSON.stringify(approval.input ?? {}, null, 2)}</pre></div><div className="approval-actions"><button className="secondary-button" onClick={() => sendCommand({ type: "approval.respond", turnId: approval.turnId, callId: approval.callId, decision: "reject" })}>Reject</button><button className="primary-button" onClick={() => sendCommand({ type: "approval.respond", turnId: approval.turnId, callId: approval.callId, decision: "approve" })}>Approve</button></div></div>}
             {events.length > 0 && <div className="event-footer">{connected ? "Live event stream" : "Reconnecting to runtime"} · {events.length} events received</div>}

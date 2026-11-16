@@ -140,4 +140,34 @@ describe("RuntimeHost", () => {
     await reader.cancel();
     await rm(root, { recursive: true, force: true });
   });
+  it("returns only validated transcript messages for an authorized session", async () => {
+    const transcriptStore = {
+      append: async () => {},
+      read: async () => [
+        { id: "m1", timestamp: "2026-11-16T00:00:00.000Z", kind: "message", data: { role: "user", content: "Earlier prompt" } },
+        { id: "m2", timestamp: "2026-11-16T00:00:01.000Z", kind: "message", data: { role: "assistant", content: "Earlier answer" } },
+        { id: "e1", timestamp: "2026-11-16T00:00:02.000Z", kind: "event", data: { protocol: "m1cro.runtime" } },
+        { id: "bad", timestamp: "2026-11-16T00:00:03.000Z", kind: "message", data: { role: "system", content: "Internal prompt" } },
+      ],
+    } as unknown as SessionStore;
+    const host = new RuntimeHost({
+      sessionStore: transcriptStore,
+      createAgent: () => ({ async *run() {} } as unknown as AgentRuntime),
+      authenticate: token => token === "c".repeat(32) ? "principal-1" : null,
+      authorizeProject: principal => principal === "principal-1",
+      authorizeSession: principal => principal === "principal-1",
+      corsOrigins: ["http://localhost:3000"], port: 0,
+    });
+    const address = await host.listen(); hosts.push(host);
+    const base = "http://" + address.host + ":" + address.port;
+    const headers = { authorization: "Bearer " + "c".repeat(32), "content-type": "application/json" };
+    const id = await createSession(base, headers);
+    const response = await fetch(base + "/v1/sessions/" + id + "/history", { headers });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ messages: [
+      { data: { role: "user", content: "Earlier prompt" } },
+      { data: { role: "assistant", content: "Earlier answer" } },
+    ] });
+    expect((await fetch(base + "/v1/sessions/" + id + "/history?limit=0", { headers })).status).toBe(400);
+  });
 });

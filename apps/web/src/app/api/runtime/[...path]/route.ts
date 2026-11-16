@@ -10,7 +10,7 @@ function validPath(parts: string[]): boolean {
     && parts[0] === "v1"
     && parts[1] === "sessions"
     && /^[A-Za-z0-9_-]{1,80}$/.test(parts[2])
-    && (parts[3] === "events" || parts[3] === "commands");
+    && (parts[3] === "events" || parts[3] === "commands" || parts[3] === "history");
 }
 async function proxy(request: Request, context: RouteContext): Promise<Response> {
   if (!requestHasSession(request)) return Response.json({ error: "Unauthorized" }, { status: 401 });

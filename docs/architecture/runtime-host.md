@@ -30,6 +30,7 @@ For Ollama, set M1CRO_PROVIDER=ollama and M1CRO_BASE_URL as needed. For Anthropi
 - GET /v1/sessions
 - POST /v1/sessions with { "projectId": "..." }
 - GET /v1/sessions/:sessionId
+- GET /v1/sessions/:sessionId/history?limit=<1..2000> (validated user/assistant/tool transcript messages)
 - GET /v1/sessions/:sessionId/events?after=<sequence> (SSE; supports Last-Event-ID)
 - POST /v1/sessions/:sessionId/commands with the versioned RuntimeCommand union
 

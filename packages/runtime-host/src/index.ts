@@ -115,12 +115,20 @@ export class RuntimeHost {
         await this.options.registryStore?.save(meta);
         this.send(res, 201, { session: meta }); return;
       }
-      const match = /^\/v1\/sessions\/([A-Za-z0-9_-]{1,80})(?:\/(events|commands))?$/.exec(new URL(req.url ?? "/", "http://localhost").pathname);
+      const match = /^\/v1\/sessions\/([A-Za-z0-9_-]{1,80})(?:\/(events|commands|history))?$/.exec(new URL(req.url ?? "/", "http://localhost").pathname);
       if (!match) { this.send(res, 404, { error: "Not found" }); return; }
       const [, sessionId, resource] = match;
       const session = this.sessions.get(sessionId!);
       if (!session || !await this.options.authorizeSession(principal, sessionId!, resource === "commands" ? "write" : "read")) { this.send(res, 404, { error: "Session not found" }); return; }
       if (!resource && req.method === "GET") { this.send(res, 200, { session }); return; }
+      if (resource === "history" && req.method === "GET") {
+        const query = new URL(req.url ?? "/", "http://localhost").searchParams;
+        const requested = Number(query.get("limit") ?? "500");
+        if (!Number.isSafeInteger(requested) || requested < 1 || requested > 2000) { this.send(res, 400, { error: "Invalid history limit" }); return; }
+        const records = await this.options.sessionStore.read(sessionId!);
+        const messages = records.filter(record => record.kind === "message" && isTranscriptMessage(record.data)).slice(-requested).map(record => ({ timestamp: record.timestamp, data: record.data }));
+        this.send(res, 200, { messages }); return;
+      }
       if (resource === "events" && req.method === "GET") { await this.streamEvents(req, res, sessionId!); return; }
       if (resource === "commands" && req.method === "POST") { await this.command(req, res, session); return; }
       this.send(res, 405, { error: "Method not allowed" });
@@ -260,6 +268,11 @@ export class RuntimeHost {
 }
 class BodyTooLargeError extends Error {}
 function safeMessage(error: unknown): string { return (error instanceof Error ? error.message : String(error)).slice(0, 500); }
+function isTranscriptMessage(value: unknown): value is { role: "user" | "assistant" | "tool"; content: string; [key: string]: unknown } {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const message = value as Record<string, unknown>;
+  return ["user", "assistant", "tool"].includes(String(message.role)) && typeof message.content === "string";
+}
 function isRecord(value: unknown): value is Record<string, unknown> { return !!value && typeof value === "object" && !Array.isArray(value); }
 function isRuntimeCommand(value: unknown): value is RuntimeCommand {
   if (!isRecord(value) || typeof value.requestId !== "string" || !ID.test(value.requestId) || typeof value.sessionId !== "string" || !ID.test(value.sessionId) || typeof value.type !== "string") return false;
