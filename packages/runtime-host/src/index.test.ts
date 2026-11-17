@@ -49,9 +49,9 @@ describe("RuntimeHost", () => {
     const base = "http://" + address.host + ":" + address.port;
     const principal = "user_123";
     const signature = createHmac("sha256", token).update("m1cro-principal:" + principal).digest("base64url");
-    const authorized = await fetch(base + "/v1/projects", { headers: { authorization: "Bearer " + token, "x-m1cro-principal": principal, "x-m1cro-principal-signature": signature } });
+    const authorized = await fetch(base + "/v1/sessions", { headers: { authorization: "Bearer " + token, "x-m1cro-principal": principal, "x-m1cro-principal-signature": signature } });
     expect(authorized.status).toBe(200);
-    const forged = await fetch(base + "/v1/projects", { headers: { authorization: "Bearer " + token, "x-m1cro-principal": "user_victim", "x-m1cro-principal-signature": signature } });
+    const forged = await fetch(base + "/v1/sessions", { headers: { authorization: "Bearer " + token, "x-m1cro-principal": "user_victim", "x-m1cro-principal-signature": signature } });
     expect(forged.status).toBe(401);
   });
   it("reports protocol health and requires authentication", async () => {
