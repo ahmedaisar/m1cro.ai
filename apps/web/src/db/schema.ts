@@ -21,6 +21,7 @@ export const session = pgTable("session", {
   updatedAt: updatedAt(),
   ipAddress: text("ip_address"),
   userAgent: text("user_agent"),
+  activeOrganizationId: text("active_organization_id"),
   userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
 });
 
@@ -74,6 +75,7 @@ export const invitation = pgTable("invitation", {
   status: text("status").notNull().default("pending"),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   inviterId: text("inviter_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  createdAt: createdAt(),
 });
 
 export const projects = pgTable("projects", {
