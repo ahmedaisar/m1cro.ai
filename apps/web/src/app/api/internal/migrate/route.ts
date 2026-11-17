@@ -35,17 +35,15 @@ async function inspectDatabase() {
   }
 }
 
-export async function POST(request: NextRequest) {
-  if (!authorized(request)) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  const body = await request.json().catch(() => ({}));
-  if (body.action === "inspect") {
+async function executeAction(action: unknown) {
+  if (action === "inspect") {
     try {
       return NextResponse.json(await inspectDatabase());
     } catch {
       return NextResponse.json({ error: "Database inspection failed" }, { status: 500 });
     }
   }
-  if (body.action === "migrate") {
+  if (action === "migrate") {
     try {
       await migrate(db, { migrationsFolder: "drizzle" });
       return NextResponse.json({ ok: true, database: await inspectDatabase() });
@@ -54,4 +52,15 @@ export async function POST(request: NextRequest) {
     }
   }
   return NextResponse.json({ error: "Unsupported action" }, { status: 400 });
+}
+
+export async function GET(request: NextRequest) {
+  if (!authorized(request)) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  return executeAction(request.nextUrl.searchParams.get("action"));
+}
+
+export async function POST(request: NextRequest) {
+  if (!authorized(request)) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const body = await request.json().catch(() => ({}));
+  return executeAction(body.action);
 }
