@@ -37,3 +37,10 @@ Vercel Sandbox is a resumable execution environment, not a continuously running 
 Runtime wake-up now uses an atomic directory lease inside the named sandbox before starting the detached runtime process. Concurrent Vercel Function instances that resume the same sandbox wait for the first starter and reuse the healthy process instead of launching duplicate runtime hosts. A stale lease can be reclaimed after its bounded age.
 
 The authenticated `POST /v1/provider/probe` endpoint performs a short, one-message inference against the saved provider configuration. The workspace exposes this as **Test saved connection**. The response contains only success/failure, model identifier, latency, and a safe error code/status; it never returns the provider credential or raw provider response. The probe consumes a small amount of model usage.
+
+
+## Multi-user identity boundary
+
+The web workspace accepts environment-managed accounts through `M1CRO_USERS_JSON`, an array of `{ id, email, passwordHash }` records. Password hashes use Node.js scrypt and the format `scrypt$<base64url-salt>$<base64url-64-byte-hash>`; never store plaintext passwords in this variable. The web session cookie carries a signed, expiring subject and email. The BFF signs the subject with the runtime bearer secret before forwarding it; the runtime verifies that signature and uses the subject as the project/session owner. Browser-supplied principal headers are never forwarded.
+
+When managed accounts are configured, the shared default workspace is not provisioned. Each user creates their own registered project, and project/session access checks use that user's stable ID. Existing single-user `M1CRO_WEB_PASSWORD` deployments remain supported as a compatibility fallback. This is an application identity and filesystem workspace boundary, not a kernel-level sandbox: all users still share one runtime process and OS account. Do not expose it to mutually untrusted users until per-user execution isolation and an external identity provider are implemented.
