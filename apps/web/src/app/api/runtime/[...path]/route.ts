@@ -16,7 +16,7 @@ function validPath(parts: string[]): boolean {
     && (parts[3] === "events" || parts[3] === "commands" || parts[3] === "history");
 }
 async function proxy(request: Request, context: RouteContext): Promise<Response> {
-  const identity = requestSessionIdentity(request);
+  const identity = await requestSessionIdentity(request);
   if (!identity) return Response.json({ error: "Unauthorized" }, { status: 401 });
   if (!isSameOriginRequest(request)) return Response.json({ error: "Origin not allowed" }, { status: 403 });
   const token = process.env.M1CRO_RUNTIME_TOKEN;

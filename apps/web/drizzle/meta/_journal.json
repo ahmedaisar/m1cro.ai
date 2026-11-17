@@ -1,0 +1,48 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1794925535973,
+      "tag": "0000_m1cro_platform_0",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794925535974,
+      "tag": "0001_m1cro_platform_1",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794925535975,
+      "tag": "0002_m1cro_platform_2",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794925535976,
+      "tag": "0003_m1cro_platform_3",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794925535977,
+      "tag": "0004_m1cro_platform_4",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794925535978,
+      "tag": "0005_m1cro_platform_5",
+      "breakpoints": true
+    }
+  ]
+}

@@ -1,7 +1,8 @@
-import { clearedSessionCookie, isSameOriginRequest } from "@/lib/auth";
+import { auth } from "@/lib/auth";
+
+export const runtime = "nodejs";
 
 export async function POST(request: Request): Promise<Response> {
-  if (!request.headers.get("origin") || !isSameOriginRequest(request)) return Response.json({ error: "Origin not allowed" }, { status: 403 });
-  const secure = process.env.NODE_ENV === "production";
-  return Response.json({ authenticated: false }, { headers: { "set-cookie": clearedSessionCookie(secure), "cache-control": "no-store" } });
+  const url = new URL("/api/auth/sign-out", request.url);
+  return auth.handler(new Request(url, { method: "POST", headers: request.headers }));
 }
