@@ -1,8 +1,10 @@
 # m1cro.ai implementation roadmap
 
-## Delivery status — 2026-11-15
+## Delivery status — 2026-11-16
 
-The initial runtime foundation was merged through PRs #1–#6. Follow-up milestones added the normalized model catalog (PR #9), OpenAI-compatible model discovery (PR #10), Anthropic/Ollama adapters (PR #12), capability evaluation (PR #13), and CLI provider selection (PR #14). This remains a **foundation milestone, not completion of the MVP**. The CLI now supports all three provider families; model discovery is being exposed through a common CLI command.
+The initial runtime foundation was merged through PRs #1–#6. Follow-up milestones added the normalized model catalog (PR #9), OpenAI-compatible model discovery (PR #10), Anthropic/Ollama adapters (PR #12), capability evaluation (PR #13), CLI provider selection (PR #14), runtime-level capability-aware model selection (PR #16), the versioned runtime client protocol (PR #17) and the initial Next.js web workspace shell (PR #18).
+
+The current state is a **runtime foundation plus an unconnected web shell, not a complete local CLI or web MVP**. Baseline validation on 2026-11-16 passed: root typecheck, 70 unit tests across 10 files, root TypeScript build, web typecheck and Next.js production build.
 
 The source-provenance assessment is documented in `docs/research/license-provenance-audit.md`. It is an engineering risk assessment, not legal clearance. Reuse of OpenClaude/Verboo source remains blocked unless qualified legal review approves it.
 
@@ -43,9 +45,18 @@ The source-provenance assessment is documented in `docs/research/license-provena
 ## Phase 3 — Workspace and client protocol
 
 - [x] Versioned runtime event protocol and per-session event sequencing (PR #17).
-- [x] Initial Next.js web workspace shell (PR #18); project/session data and runtime bridge remain open.
-- [ ] Attach to and observe active runtime sessions.
+- [x] Initial Next.js web workspace shell (PR #18).
+- [x] Align the primary Vercel `m1cro.ai` project with the Next.js app root (`apps/web`), Node.js 22 and npm build commands.
+- [x] Implement the initial HTTP/SSE transport adapter and Node.js host around the shared `AgentRuntime`; do not create a second agent loop in Next.js. See [runtime host](architecture/runtime-host.md).
+- [x] Persist session metadata and sequenced event history; rebuild the session list/replay log after restart and mark interrupted turns failed.
+- [x] Add the initial single-user signed-cookie gate and same-origin server-side BFF; keep the runtime bearer token server-side. See [web runtime connection](architecture/web-runtime-connection.md). Production multi-user identity remains open.
+- [x] Connect the web client to API-backed sessions and SSE event replay; support reconnecting to active sessions.
+- [x] Render streamed assistant output, tool activity and explicit approval/rejection; support turn cancellation.
+- [x] Replace sample session dashboard data with authenticated/API-backed session listing and creation.
+- [ ] Add project discovery/provisioning to the web UI.
 - [ ] Browser/editor integration foundations.
+
+**Phase 3 is in progress.** The web workspace now connects through a same-origin authenticated BFF to the shared Node.js runtime, with session persistence/replay, streamed events, tool approvals and cancellation. The first browser-to-runtime slice is implemented. Production multi-user identity, rate limiting, project provisioning, project discovery/provisioning and isolated remote execution remain open.
 
 ## Phase 4 — Hosted platform
 
@@ -67,3 +78,4 @@ The source-provenance assessment is documented in `docs/research/license-provena
 - Keep live-provider, PTY, installed-package, browser and visual checks guarded or in release validation; do not make them a routine feature-branch bottleneck.
 - Do not claim a sandbox guarantee until the executor and OS isolation boundary are independently tested.
 - Do not claim full MVP completion while the Phase 1 and Phase 2 items above remain open.
+- Validate Vercel preview deployments before any production promotion; the primary `m1cro.ai` project must use `apps/web` as its root directory.
