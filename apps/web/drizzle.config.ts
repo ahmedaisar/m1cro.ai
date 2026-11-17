@@ -1,11 +1,15 @@
 import { defineConfig } from "drizzle-kit";
 
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL is required. Configure the Neon connection before running Drizzle commands.");
+}
+
 export default defineConfig({
   dialect: "postgresql",
   schema: "./src/db/schema.ts",
   out: "./drizzle",
   dbCredentials: {
-    url: process.env.DATABASE_URL ?? "postgres://build:build@127.0.0.1:5432/m1cro_build_only",
+    url: process.env.DATABASE_URL,
   },
   strict: true,
   verbose: true,
