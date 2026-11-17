@@ -2,6 +2,8 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { authClient } from "@/lib/auth-client";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -9,34 +11,27 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [configured, setConfigured] = useState<boolean | null>(null);
 
   useEffect(() => {
-    fetch("/api/auth/session", { cache: "no-store" }).then(async response => {
-      const data = await response.json() as { authenticated?: boolean };
-      if (data.authenticated) router.replace("/");
-    }).catch(() => {});
-    fetch("/api/auth/login", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })
-      .then(response => setConfigured(response.status !== 503))
-      .catch(() => setConfigured(false));
+    authClient.getSession().then(({ data }) => {
+      if (data?.user) router.replace("/");
+    }).catch(() => undefined);
   }, [router]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setBusy(true); setError("");
+    setBusy(true);
+    setError("");
     try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await response.json() as { error?: string };
-      if (!response.ok) throw new Error(data.error ?? "Unable to sign in");
+      const result = await authClient.signIn.email({ email, password });
+      if (result.error) throw new Error(result.error.message ?? "Unable to sign in");
       router.replace("/");
       router.refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to sign in");
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -46,16 +41,15 @@ export default function LoginPage() {
         <p className="eyebrow">PRIVATE ENGINEERING WORKSPACE</p>
         <h1>Welcome back.</h1>
         <p className="auth-copy">Sign in with your workspace account to continue your engineering sessions.</p>
-        {configured === false && <div className="notice notice-warning">Web sign-in is not configured. Add M1CRO_USERS_JSON and a random M1CRO_WEB_SESSION_SECRET (32+ characters) to the server environment.</div>}
-        <form onSubmit={submit} className="auth-form">
-          <label htmlFor="email">Email address</label>
-          <input id="email" type="email" autoComplete="username" value={email} onChange={event => setEmail(event.target.value)} required />
+        <form onSubmit={submit}>
+          <label htmlFor="email">Email</label>
+          <input id="email" type="email" autoComplete="email" required value={email} onChange={event => setEmail(event.target.value)} />
           <label htmlFor="password">Password</label>
-          <input id="password" type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} required />
-          {error && <p className="form-error">{error}</p>}
-          <button className="primary-button auth-submit" type="submit" disabled={busy || configured === false}>{busy ? "Signing in…" : "Continue"}</button>
+          <input id="password" type="password" autoComplete="current-password" required value={password} onChange={event => setPassword(event.target.value)} />
+          {error ? <p role="alert" className="auth-error">{error}</p> : null}
+          <button type="submit" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
         </form>
-        <p className="auth-footnote">Individual account · Secure, HTTP-only session cookie</p>
+        <p className="auth-copy">New to m1cro.ai? <Link href="/signup">Create an account</Link></p>
       </section>
     </main>
   );

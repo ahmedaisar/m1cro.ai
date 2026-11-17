@@ -1,10 +1,12 @@
-import { cookies } from "next/headers";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import WorkspaceClient from "@/components/workspace-client";
 
+export const dynamic = "force-dynamic";
+
 export default async function HomePage() {
-  const jar = await cookies();
-  if (!verifySessionToken(jar.get(SESSION_COOKIE)?.value)) redirect("/login");
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session?.user) redirect("/login");
   return <WorkspaceClient />;
 }
