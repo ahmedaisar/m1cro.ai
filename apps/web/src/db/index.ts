@@ -2,9 +2,10 @@ import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import * as schema from "./schema";
 
-const connectionString =
-  process.env.DATABASE_URL ??
-  "postgres://build:build@127.0.0.1:5432/m1cro_build_only";
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  throw new Error("DATABASE_URL is required to initialize the application database");
+}
 
 const client = postgres(connectionString, {
   max: 1,
