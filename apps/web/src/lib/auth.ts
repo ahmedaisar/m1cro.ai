@@ -1,18 +1,29 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { organization } from "better-auth/plugins";
+import { nextCookies } from "better-auth/next-js";
 import { createHmac } from "node:crypto";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
 
-const authSecret =
-  process.env.BETTER_AUTH_SECRET ??
-  process.env.M1CRO_WEB_SESSION_SECRET ??
-  "m1cro-build-only-secret-do-not-use-in-production-000000";
+function requiredSecret(): string {
+  const value = process.env.BETTER_AUTH_SECRET;
+  if (!value || Buffer.byteLength(value, "utf8") < 32) {
+    // Local development may use an ephemeral secret, but production/preview must fail closed.
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("BETTER_AUTH_SECRET must be configured with at least 32 bytes");
+    }
+    throw new Error("BETTER_AUTH_SECRET must be configured with at least 32 bytes");
+  }
+  return value;
+}
+
+const authSecret = requiredSecret();
+const configuredBaseURL = process.env.BETTER_AUTH_URL || undefined;
 
 export const auth = betterAuth({
   appName: "m1cro.ai",
-  baseURL: process.env.BETTER_AUTH_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
+  ...(configuredBaseURL ? { baseURL: configuredBaseURL } : {}),
   secret: authSecret,
   database: drizzleAdapter(db, {
     provider: "pg",
@@ -32,12 +43,11 @@ export const auth = betterAuth({
     minPasswordLength: 12,
     maxPasswordLength: 128,
   },
-  plugins: [organization()],
+  plugins: [organization(), nextCookies()],
   trustedOrigins: [
     process.env.NEXT_PUBLIC_APP_URL,
     process.env.BETTER_AUTH_URL,
-    "https://m1croai-*.vercel.app",
-    "https://m1cro-*.ahmed-aisars-projects.vercel.app",
+    "https://*.vercel.app",
     "http://localhost:3000",
   ].filter((value): value is string => Boolean(value)),
   advanced: {
