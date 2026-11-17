@@ -43,6 +43,13 @@
       "when": 1794925535978,
       "tag": "0005_m1cro_platform_5",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794935257523,
+      "tag": "0006_better_auth_org_schema",
+      "breakpoints": true
     }
   ]
 }
