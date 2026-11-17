@@ -1,4 +1,4 @@
-import { isSameOriginRequest, requestHasSession } from "@/lib/auth";
+import { isSameOriginRequest, requestSessionIdentity, signRuntimePrincipal } from "@/lib/auth";
 import { ensureRuntime } from "@/lib/runtime-manager";
 
 export const runtime = "nodejs";
@@ -16,7 +16,8 @@ function validPath(parts: string[]): boolean {
     && (parts[3] === "events" || parts[3] === "commands" || parts[3] === "history");
 }
 async function proxy(request: Request, context: RouteContext): Promise<Response> {
-  if (!requestHasSession(request)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const identity = requestSessionIdentity(request);
+  if (!identity) return Response.json({ error: "Unauthorized" }, { status: 401 });
   if (!isSameOriginRequest(request)) return Response.json({ error: "Origin not allowed" }, { status: 403 });
   const token = process.env.M1CRO_RUNTIME_TOKEN;
   if (!token || token.length < 32) {
@@ -37,7 +38,11 @@ async function proxy(request: Request, context: RouteContext): Promise<Response>
   upstreamUrl.search = new URL(request.url).search;
   const method = request.method;
   if (method !== "GET" && method !== "POST") return Response.json({ error: "Method not allowed" }, { status: 405 });
-  const headers = new Headers({ authorization: "Bearer " + token });
+  const headers = new Headers({
+    authorization: "Bearer " + token,
+    "x-m1cro-principal": identity.id,
+    "x-m1cro-principal-signature": signRuntimePrincipal(identity.id, token),
+  });
   if (method === "POST") {
     headers.set("content-type", "application/json");
     if (request.headers.get("content-type") !== "application/json") return Response.json({ error: "JSON commands only" }, { status: 415 });
