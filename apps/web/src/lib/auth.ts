@@ -85,6 +85,7 @@ export function getSessionIdentity(token: string | undefined | null): Authentica
     return validIdentity(user) ? user : null;
   } catch { return null; }
 }
+export function verifySessionToken(token: string | undefined | null): boolean { return getSessionIdentity(token) !== null; }
 function cookieToken(request: Request): string | null {
   const header = request.headers.get("cookie") ?? "";
   return header.split(";").map(value => value.trim()).find(value => value.startsWith(SESSION_COOKIE + "="))?.slice(SESSION_COOKIE.length + 1) ?? null;
