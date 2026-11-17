@@ -9,6 +9,7 @@ import { registerFilesystemTools, ToolRegistry, Workspace } from "@m1cro/tools";
 import { createLocalRuntimeHost } from "./index.js";
 import { JsonlRuntimeSessionRegistry } from "./registry.js";
 import { JsonlRuntimeProjectRegistry } from "./projects.js";
+import { EncryptedProviderConfigStore, validateProviderConfig, type RuntimeProviderConfig } from "./provider-config.js";
 
 type ProviderKind = "openai-compatible" | "anthropic" | "ollama";
 const defaults: Record<ProviderKind, { baseUrl: string; model: string }> = {
@@ -16,20 +17,24 @@ const defaults: Record<ProviderKind, { baseUrl: string; model: string }> = {
   anthropic: { baseUrl: "https://api.anthropic.com", model: "claude-3-5-haiku-latest" },
   ollama: { baseUrl: "http://127.0.0.1:11434", model: "llama3.2" },
 };
-function providerFromEnvironment(): { provider: ModelProvider; model: string } {
+function providerFromEnvironment(): RuntimeProviderConfig {
   const kind = (process.env.M1CRO_PROVIDER ?? "openai-compatible") as ProviderKind;
   if (!(kind in defaults)) throw new Error("M1CRO_PROVIDER must be openai-compatible, anthropic or ollama");
   const config = defaults[kind];
   const baseUrl = process.env.M1CRO_BASE_URL ?? config.baseUrl;
   if (!/^https?:\/\//i.test(baseUrl)) throw new Error("M1CRO_BASE_URL must use http or https");
   const apiKey = kind === "anthropic" ? process.env.ANTHROPIC_API_KEY : kind === "ollama" ? undefined : process.env.OPENAI_API_KEY;
-  if (kind !== "ollama" && !apiKey) throw new Error(kind === "anthropic" ? "ANTHROPIC_API_KEY is required" : "OPENAI_API_KEY is required");
-  const provider = kind === "anthropic"
-    ? new AnthropicProvider({ baseUrl, ...(apiKey ? { apiKey } : {}) })
-    : kind === "ollama"
-      ? new OllamaProvider({ baseUrl })
-      : new OpenAICompatibleProvider({ baseUrl, ...(apiKey ? { apiKey } : {}) });
-  return { provider, model: process.env.M1CRO_MODEL ?? config.model };
+  return { kind, model: process.env.M1CRO_MODEL ?? config.model, baseUrl, ...(apiKey ? { apiKey } : {}) };
+}
+function createProvider(config: RuntimeProviderConfig): ModelProvider {
+  return config.kind === "anthropic"
+    ? new AnthropicProvider({ baseUrl: config.baseUrl, ...(config.apiKey ? { apiKey: config.apiKey } : {}) })
+    : config.kind === "ollama"
+      ? new OllamaProvider({ baseUrl: config.baseUrl })
+      : new OpenAICompatibleProvider({ baseUrl: config.baseUrl, ...(config.apiKey ? { apiKey: config.apiKey } : {}) });
+}
+function providerStatus(config: RuntimeProviderConfig): Record<string, unknown> {
+  return { kind: config.kind, model: config.model, baseUrl: config.baseUrl, authenticationRequired: config.kind !== "ollama", credentialConfigured: config.kind === "ollama" || Boolean(config.apiKey), connectivity: "not_checked" };
 }
 async function preparePrivateDirectory(directory: string): Promise<void> {
   await mkdir(directory, { recursive: true, mode: 0o700 });
@@ -51,19 +56,33 @@ export async function startRuntimeHost(): Promise<void> {
   const registryStore = new JsonlRuntimeSessionRegistry(path.join(storageRoot, "runtime-sessions.jsonl"));
   const projectStore = new JsonlRuntimeProjectRegistry(path.join(storageRoot, "projects.jsonl"), projectsRoot);
   await projectStore.ensureDefault("local-user", "default", "Default workspace", workspaceRoot);
-  const configured = providerFromEnvironment();
+  const providerConfigStore = new EncryptedProviderConfigStore(path.join(storageRoot, "provider-config.json.enc"), process.env.M1CRO_PROVIDER_CONFIG_KEY);
+  let activeProviderConfig = await providerConfigStore.load() ?? providerFromEnvironment();
+  let activeProvider = createProvider(activeProviderConfig);
   const host = createLocalRuntimeHost({
     token,
     sessionStore,
     registryStore,
     projectStore,
+    providerStatus: () => providerStatus(activeProviderConfig),
+    updateProviderConfig: async value => {
+      const input = value && typeof value === "object" ? { ...(value as Record<string, unknown>) } : value;
+      if (input && typeof input === "object" && (input as Record<string, unknown>).kind === activeProviderConfig.kind && !(typeof (input as Record<string, unknown>).apiKey === "string" && ((input as Record<string, unknown>).apiKey as string).trim()) && activeProviderConfig.apiKey) {
+        (input as Record<string, unknown>).apiKey = activeProviderConfig.apiKey;
+      }
+      const next = validateProviderConfig(input);
+      await providerConfigStore.save(next);
+      activeProviderConfig = next;
+      activeProvider = createProvider(next);
+      return providerStatus(next);
+    },
     corsOrigins: (process.env.M1CRO_CORS_ORIGINS ?? "http://localhost:3000").split(",").map(value => value.trim()).filter(Boolean),
     host: process.env.M1CRO_RUNTIME_HOST ?? "127.0.0.1",
     port: Number(process.env.M1CRO_RUNTIME_PORT ?? "8787"),
     createAgent: (approval, store, projectWorkspaceRoot) => {
       const tools = new ToolRegistry();
       registerFilesystemTools(tools, new Workspace({ root: projectWorkspaceRoot ?? workspaceRoot }));
-      return new AgentRuntime({ provider: configured.provider, model: configured.model, tools, policy: new DefaultPolicy(), approval, sessionStore: store });
+      return new AgentRuntime({ provider: activeProvider, model: activeProviderConfig.model, tools, policy: new DefaultPolicy(), approval, sessionStore: store });
     },
   });
   const address = await host.listen();
