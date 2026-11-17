@@ -10,6 +10,7 @@ export interface RuntimeHostOptions {
   projectStore?: RuntimeProjectRegistry;
   providerStatus?: () => Record<string, unknown> | Promise<Record<string, unknown>>;
   updateProviderConfig?: (config: unknown) => Promise<Record<string, unknown>>;
+  probeProvider?: () => Promise<Record<string, unknown>>;
   sessionStore: SessionStore;
   registryStore?: RuntimeSessionRegistry;
   authenticate: (token: string) => Promise<string | null> | string | null;
@@ -102,6 +103,10 @@ export class RuntimeHost {
       if (!principal) { this.send(res, 401, { error: "Unauthorized" }); return; }
       if (req.method === "GET" && req.url === "/v1/provider/status") {
         this.send(res, 200, { provider: await this.options.providerStatus?.() ?? { configured: false } }); return;
+      }
+      if (req.method === "POST" && req.url === "/v1/provider/probe") {
+        if (!this.options.probeProvider) { this.send(res, 503, { error: "Provider probing is not enabled" }); return; }
+        this.send(res, 200, { probe: await this.options.probeProvider() }); return;
       }
       if (req.method === "POST" && req.url === "/v1/provider/config") {
         if (!this.options.updateProviderConfig) { this.send(res, 503, { error: "Provider configuration is not enabled" }); return; }

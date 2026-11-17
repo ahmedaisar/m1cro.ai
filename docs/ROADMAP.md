@@ -92,3 +92,7 @@ The web BFF now manages the named persistent Vercel Sandbox runtime using Vercel
 
 
 The Vercel project must have Secure Backend Access with OIDC Federation enabled for automatic sandbox resume.
+
+
+- [x] Coordinate runtime auto-start across concurrent web requests with a sandbox-scoped atomic lease.
+- [x] Add an authenticated provider inference probe and workspace connection-test control; report sanitized diagnostics only.

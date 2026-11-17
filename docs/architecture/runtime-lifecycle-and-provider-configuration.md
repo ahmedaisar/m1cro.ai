@@ -30,3 +30,10 @@ Vercel Sandbox is a resumable execution environment, not a continuously running 
 
 
 **Required Vercel setting:** enable Secure Backend Access with OIDC Federation under Project Settings → Security for the m1cro.ai project. The runtime manager expects the team issuer mode.
+
+
+## Runtime start coordination and provider verification
+
+Runtime wake-up now uses an atomic directory lease inside the named sandbox before starting the detached runtime process. Concurrent Vercel Function instances that resume the same sandbox wait for the first starter and reuse the healthy process instead of launching duplicate runtime hosts. A stale lease can be reclaimed after its bounded age.
+
+The authenticated `POST /v1/provider/probe` endpoint performs a short, one-message inference against the saved provider configuration. The workspace exposes this as **Test saved connection**. The response contains only success/failure, model identifier, latency, and a safe error code/status; it never returns the provider credential or raw provider response. The probe consumes a small amount of model usage.

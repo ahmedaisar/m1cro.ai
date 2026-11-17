@@ -8,6 +8,7 @@ type RuntimeEnvelope = { protocol: string; version: number; sessionId: string; s
 type RuntimeSession = { id: string; projectId: string; ownerId: string; createdAt: string; updatedAt: string; status: string; activeTurnId?: string };
 type RuntimeProject = { id: string; name: string; ownerId: string; createdAt: string; updatedAt: string };
 type ProviderStatus = { kind?: string; model?: string; baseUrl?: string; authenticationRequired?: boolean; credentialConfigured?: boolean; connectivity?: string };
+type ProviderProbe = { ok?: boolean; connectivity?: string; model?: string; latencyMs?: number; errorCode?: string; httpStatus?: number; responseReceived?: boolean };
 type ToolActivity = { callId: string; name: string; input?: unknown; output?: unknown; isError?: boolean };
 type TranscriptItem = { timestamp: string; data: { role: "user" | "assistant" | "tool"; content: string; toolCallId?: string } };
 
@@ -34,6 +35,8 @@ export default function WorkspaceClient() {
   const [providerBaseUrl, setProviderBaseUrl] = useState("https://api.openai.com/v1");
   const [providerApiKey, setProviderApiKey] = useState("");
   const [providerSaving, setProviderSaving] = useState(false);
+  const [providerProbing, setProviderProbing] = useState(false);
+  const [providerProbe, setProviderProbe] = useState<ProviderProbe | null>(null);
   const [providerMessage, setProviderMessage] = useState("");
   const streamRef = useRef<EventSource | null>(null);
   const lastSequence = useRef(0);
@@ -175,11 +178,28 @@ export default function WorkspaceClient() {
       const data = await response.json() as { provider?: ProviderStatus; error?: string };
       if (!response.ok || !data.provider) throw new Error(data.error ?? "Could not save provider settings");
       setProviderStatus(data.provider);
+      setProviderProbe(null);
       setProviderApiKey("");
       setProviderMessage("Provider saved securely. New sessions will use this configuration.");
     } catch (cause) {
       setProviderMessage(cause instanceof Error ? cause.message : "Could not save provider settings");
     } finally { setProviderSaving(false); }
+  }
+
+  async function testProvider() {
+    setProviderProbing(true); setProviderProbe(null); setProviderMessage(""); setError("");
+    try {
+      const response = await fetch("/api/runtime/v1/provider/probe", { method: "POST" });
+      const data = await response.json() as { probe?: ProviderProbe; error?: string };
+      if (!response.ok || !data.probe) throw new Error(data.error ?? "Provider test failed");
+      setProviderProbe(data.probe);
+      setProviderStatus(current => current ? { ...current, connectivity: data.probe?.ok ? "connected" : "error" } : current);
+      setProviderMessage(data.probe.ok
+        ? "Provider responded successfully in " + data.probe.latencyMs + " ms."
+        : "Provider test failed (" + (data.probe.errorCode ?? "unknown_error") + ").");
+    } catch (cause) {
+      setProviderMessage(cause instanceof Error ? cause.message : "Provider test failed");
+    } finally { setProviderProbing(false); }
   }
 
   async function sendPrompt(event: FormEvent<HTMLFormElement>) {
@@ -233,7 +253,7 @@ export default function WorkspaceClient() {
         <div className="sidebar-bottom"><div className="runtime-state"><span className={"connection-dot " + (connected ? "online" : "")}></span><span>{connected ? "Runtime connected" : "Runtime disconnected"}</span></div><button className="user-row" onClick={logout}><span className="user-avatar">U</span><span><strong>Workspace user</strong><small>Sign out</small></span><span className="chevron">↗</span></button></div>
       </aside>
       <section className="workspace-main">
-        <header className="workspace-topbar"><div><span className="breadcrumb-muted">Workspace</span><span className="breadcrumb-sep">/</span><strong>{activeSession ? activeSession.projectId : "New session"}</strong></div><div className="topbar-right"><span className="provider-pill" title={providerStatus?.baseUrl ?? "Provider status unavailable"}>{providerStatus ? (providerStatus.kind ?? "Provider") + " · " + (providerStatus.model ?? "No model") + (providerStatus.authenticationRequired && !providerStatus.credentialConfigured ? " · API key missing" : " · " + (providerStatus.connectivity === "not_checked" ? "not tested" : "configured")) : "Provider status unavailable"}</span><details className="provider-settings"><summary>Configure</summary><form className="provider-settings-panel" onSubmit={saveProvider}><label>Provider<select value={providerKind} onChange={event => { const next = event.target.value; setProviderKind(next); setProviderBaseUrl(next === "anthropic" ? "https://api.anthropic.com" : next === "ollama" ? "http://127.0.0.1:11434" : "https://api.openai.com/v1"); }}><option value="openai-compatible">OpenAI-compatible</option><option value="anthropic">Anthropic</option><option value="ollama">Ollama</option></select></label><label>Model<input value={providerModel} onChange={event => setProviderModel(event.target.value)} required maxLength={160} placeholder="Model identifier" /></label><label>API base URL<input value={providerBaseUrl} onChange={event => setProviderBaseUrl(event.target.value)} required type="url" placeholder="https://api.openai.com/v1" /></label><label>API key {providerKind === "ollama" ? "(optional)" : ""}<input type="password" autoComplete="new-password" value={providerApiKey} onChange={event => setProviderApiKey(event.target.value)} placeholder={providerKind === "ollama" ? "Optional" : providerStatus?.kind === providerKind && providerStatus.credentialConfigured ? "Leave blank to keep current key" : "Enter provider API key"} required={providerKind !== "ollama" && !(providerStatus?.kind === providerKind && providerStatus.credentialConfigured)} /></label><button className="primary-button" type="submit" disabled={providerSaving}>{providerSaving ? "Saving…" : "Save provider"}</button>{providerMessage && <small role="status">{providerMessage}</small>}</form></details><span className="runtime-pill"><i className={connected ? "online" : ""}></i>{connected ? "Connected" : "Waiting for runtime"}</span><button className="secondary-button" onClick={logout}>Sign out</button></div></header>
+        <header className="workspace-topbar"><div><span className="breadcrumb-muted">Workspace</span><span className="breadcrumb-sep">/</span><strong>{activeSession ? activeSession.projectId : "New session"}</strong></div><div className="topbar-right"><span className="provider-pill" title={providerStatus?.baseUrl ?? "Provider status unavailable"}>{providerStatus ? (providerStatus.kind ?? "Provider") + " · " + (providerStatus.model ?? "No model") + (providerStatus.authenticationRequired && !providerStatus.credentialConfigured ? " · API key missing" : " · " + (providerStatus.connectivity === "connected" ? "connected" : providerStatus.connectivity === "error" ? "connection failed" : providerStatus.connectivity === "not_checked" ? "not tested" : "configured")) : "Provider status unavailable"}</span><details className="provider-settings"><summary>Configure</summary><form className="provider-settings-panel" onSubmit={saveProvider}><label>Provider<select value={providerKind} onChange={event => { const next = event.target.value; setProviderKind(next); setProviderBaseUrl(next === "anthropic" ? "https://api.anthropic.com" : next === "ollama" ? "http://127.0.0.1:11434" : "https://api.openai.com/v1"); }}><option value="openai-compatible">OpenAI-compatible</option><option value="anthropic">Anthropic</option><option value="ollama">Ollama</option></select></label><label>Model<input value={providerModel} onChange={event => setProviderModel(event.target.value)} required maxLength={160} placeholder="Model identifier" /></label><label>API base URL<input value={providerBaseUrl} onChange={event => setProviderBaseUrl(event.target.value)} required type="url" placeholder="https://api.openai.com/v1" /></label><label>API key {providerKind === "ollama" ? "(optional)" : ""}<input type="password" autoComplete="new-password" value={providerApiKey} onChange={event => setProviderApiKey(event.target.value)} placeholder={providerKind === "ollama" ? "Optional" : providerStatus?.kind === providerKind && providerStatus.credentialConfigured ? "Leave blank to keep current key" : "Enter provider API key"} required={providerKind !== "ollama" && !(providerStatus?.kind === providerKind && providerStatus.credentialConfigured)} /></label><div className="provider-actions"><button className="primary-button" type="submit" disabled={providerSaving}>{providerSaving ? "Saving…" : "Save provider"}</button><button className="secondary-button" type="button" onClick={testProvider} disabled={providerProbing || providerSaving || (!providerStatus?.credentialConfigured && providerKind !== "ollama")}>{providerProbing ? "Testing…" : "Test saved connection"}</button></div>{providerMessage && <small role="status">{providerMessage}</small>}{providerProbe?.httpStatus && <small>HTTP status: {providerProbe.httpStatus}</small>}</form></details><span className="runtime-pill"><i className={connected ? "online" : ""}></i>{connected ? "Connected" : "Waiting for runtime"}</span><button className="secondary-button" onClick={logout}>Sign out</button></div></header>
         <div className="session-workarea">
           {!activeId ? <div className="welcome-panel"><div className="welcome-orb">m·</div><p className="eyebrow">ONE WORKSPACE. ANY MODEL.</p><h1>What are we building?</h1><p>Start a session against your configured runtime workspace.</p><div className="new-session-row"><select aria-label="Select project" value={selectedProjectId} onChange={event => setSelectedProjectId(event.target.value)} disabled={!projects.length}>{projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select><input aria-label="New project name" value={newProjectName} onChange={event => setNewProjectName(event.target.value)} placeholder="New project name" /><button className="secondary-button" onClick={createProject} disabled={busy || !newProjectName.trim()}>Add</button><button className="primary-button" onClick={createSession} disabled={busy || !selectedProjectId}>New session</button></div></div> :
           <div className="conversation">

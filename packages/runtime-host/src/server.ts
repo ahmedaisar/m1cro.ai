@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { AgentRuntime } from "@m1cro/core";
 import { DefaultPolicy } from "@m1cro/policy";
-import { AnthropicProvider, OllamaProvider, OpenAICompatibleProvider, type ModelProvider } from "@m1cro/providers";
+import { AnthropicProvider, OllamaProvider, OpenAICompatibleProvider, ProviderHttpError, type ModelProvider } from "@m1cro/providers";
 import { JsonlSessionStore } from "@m1cro/sessions";
 import { registerFilesystemTools, ToolRegistry, Workspace } from "@m1cro/tools";
 import { createLocalRuntimeHost } from "./index.js";
@@ -65,6 +65,41 @@ export async function startRuntimeHost(): Promise<void> {
     registryStore,
     projectStore,
     providerStatus: () => providerStatus(activeProviderConfig),
+    probeProvider: async () => {
+      const startedAt = Date.now();
+      try {
+        let responseChars = 0;
+        for await (const event of activeProvider.stream({
+          model: activeProviderConfig.model,
+          messages: [{ role: "user", content: "Reply with exactly OK." }],
+          tools: [],
+          signal: AbortSignal.timeout(15_000),
+        })) {
+          if (event.type === "text" && event.text.length > 0) {
+            responseChars = event.text.length;
+            break;
+          }
+          if (event.type === "done") break;
+        }
+        return {
+          ok: responseChars > 0,
+          connectivity: responseChars > 0 ? "connected" : "error",
+          model: activeProviderConfig.model,
+          latencyMs: Date.now() - startedAt,
+          responseReceived: responseChars > 0,
+        };
+      } catch (error) {
+        const status = error instanceof ProviderHttpError ? error.status : undefined;
+        return {
+          ok: false,
+          connectivity: "error",
+          model: activeProviderConfig.model,
+          latencyMs: Date.now() - startedAt,
+          errorCode: status === 401 || status === 403 ? "authentication_failed" : status ? "provider_http_error" : "request_failed",
+          ...(status ? { httpStatus: status } : {}),
+        };
+      }
+    },
     updateProviderConfig: async value => {
       const input = value && typeof value === "object" ? { ...(value as Record<string, unknown>) } : value;
       if (input && typeof input === "object" && (input as Record<string, unknown>).kind === activeProviderConfig.kind && !(typeof (input as Record<string, unknown>).apiKey === "string" && ((input as Record<string, unknown>).apiKey as string).trim()) && activeProviderConfig.apiKey) {

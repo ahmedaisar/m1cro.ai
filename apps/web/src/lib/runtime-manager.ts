@@ -75,7 +75,21 @@ async function wakeRuntime(oidcToken: string | null): Promise<string> {
       token,
       { method: "POST", body: JSON.stringify({
         command: "bash",
-        args: ["-lc", "if ! curl -fsS http://127.0.0.1:" + port + "/health >/dev/null 2>&1; then nohup pnpm --filter @m1cro/runtime-host start >/tmp/m1cro-runtime.log 2>&1 </dev/null & fi"],
+        args: ["-lc", [
+          "set -eu",
+          "lock=/tmp/m1cro-runtime-start.lock",
+          "for attempt in $(seq 1 56); do",
+          "  if curl -fsS http://127.0.0.1:" + port + "/health >/dev/null 2>&1; then exit 0; fi",
+          "  if mkdir \"$lock\" 2>/dev/null; then",
+          "    trap 'rmdir \"$lock\" 2>/dev/null || true' EXIT",
+          "    if ! curl -fsS http://127.0.0.1:" + port + "/health >/dev/null 2>&1; then nohup pnpm --filter @m1cro/runtime-host start >/tmp/m1cro-runtime.log 2>&1 </dev/null & fi",
+          "    exit 0",
+          "  fi",
+          "  if [ -d \"$lock\" ]; then lock_age=$(( $(date +%s) - $(stat -c %Y \"$lock\" 2>/dev/null || date +%s) )); if [ \"$lock_age\" -gt 40 ]; then rmdir \"$lock\" 2>/dev/null || true; fi; fi",
+          "  sleep 0.25",
+          "done",
+          "exit 75"
+        ].join("\n")],
         cwd,
         env,
         wait: true,
