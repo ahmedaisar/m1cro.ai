@@ -37,6 +37,7 @@ export const auth = betterAuth({
     process.env.NEXT_PUBLIC_APP_URL,
     process.env.BETTER_AUTH_URL,
     "https://m1croai-*.vercel.app",
+    "https://m1cro-*.ahmed-aisars-projects.vercel.app",
     "http://localhost:3000",
   ].filter((value): value is string => Boolean(value)),
   advanced: {
