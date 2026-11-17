@@ -3,7 +3,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { JsonlSessionStore } from "@m1cro/sessions";
-import { RuntimeHost } from "./index.js";
+import { RuntimeHost, createLocalRuntimeHost } from "./index.js";
+import { createHmac } from "node:crypto";
 import type { AgentRuntime } from "@m1cro/core";
 import type { SessionStore } from "@m1cro/sessions";
 import type { RuntimeEvent } from "@m1cro/protocol";
@@ -41,6 +42,18 @@ async function createSession(base: string, headers: Record<string, string>) {
   return (await response.json() as { session: { id: string } }).session.id;
 }
 describe("RuntimeHost", () => {
+  it("verifies BFF-signed principals and rejects forged or missing signatures", async () => {
+    const token = "d".repeat(64);
+    const host = createLocalRuntimeHost({ token, sessionStore: store, createAgent: () => ({ async *run() {} } as unknown as AgentRuntime), corsOrigins: ["http://localhost:3000"], port: 0 });
+    const address = await host.listen(); hosts.push(host);
+    const base = "http://" + address.host + ":" + address.port;
+    const principal = "user_123";
+    const signature = createHmac("sha256", token).update("m1cro-principal:" + principal).digest("base64url");
+    const authorized = await fetch(base + "/v1/projects", { headers: { authorization: "Bearer " + token, "x-m1cro-principal": principal, "x-m1cro-principal-signature": signature } });
+    expect(authorized.status).toBe(200);
+    const forged = await fetch(base + "/v1/projects", { headers: { authorization: "Bearer " + token, "x-m1cro-principal": "user_victim", "x-m1cro-principal-signature": signature } });
+    expect(forged.status).toBe(401);
+  });
   it("reports protocol health and requires authentication", async () => {
     const { base } = await setup();
     expect(await (await fetch(base + "/health")).json()).toMatchObject({ protocol: "m1cro.runtime", version: 1, ready: true });
