@@ -11,7 +11,7 @@ function authorized(request: NextRequest): boolean {
   if (process.env.VERCEL_ENV !== "preview") return false;
   if (process.env.VERCEL_GIT_COMMIT_REF !== "ops/neon-migration-runner") return false;
   const expected = process.env.M1CRO_MIGRATION_TOKEN;
-  const provided = request.headers.get("authorization")?.replace(/^Bearer\\s+/i, "");
+  const provided = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   if (!expected || !provided) return false;
   const a = Buffer.from(expected);
   const b = Buffer.from(provided);
