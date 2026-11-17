@@ -55,7 +55,11 @@ export async function startRuntimeHost(): Promise<void> {
   const sessionStore = new JsonlSessionStore(id => path.join(sessionRoot, id + ".jsonl"));
   const registryStore = new JsonlRuntimeSessionRegistry(path.join(storageRoot, "runtime-sessions.jsonl"));
   const projectStore = new JsonlRuntimeProjectRegistry(path.join(storageRoot, "projects.jsonl"), projectsRoot);
-  await projectStore.ensureDefault("local-user", "default", "Default workspace", workspaceRoot);
+  if (process.env.M1CRO_MULTI_USER_ENABLED === "1") {
+    // Managed users receive explicitly-created projects; never expose a shared default workspace.
+  } else {
+    await projectStore.ensureDefault("local-user", "default", "Default workspace", workspaceRoot);
+  }
   const providerConfigStore = new EncryptedProviderConfigStore(path.join(storageRoot, "provider-config.json.enc"), process.env.M1CRO_PROVIDER_CONFIG_KEY);
   let activeProviderConfig = await providerConfigStore.load() ?? providerFromEnvironment();
   let activeProvider = createProvider(activeProviderConfig);

@@ -1,3 +1,4 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
 import { AgentRuntime, type ApprovalController, type ApprovalDecision, type ApprovalRequest } from "@m1cro/core";
@@ -13,7 +14,7 @@ export interface RuntimeHostOptions {
   probeProvider?: () => Promise<Record<string, unknown>>;
   sessionStore: SessionStore;
   registryStore?: RuntimeSessionRegistry;
-  authenticate: (token: string) => Promise<string | null> | string | null;
+  authenticate: (token: string, principalId?: string, principalSignature?: string) => Promise<string | null> | string | null;
   authorizeSession: (principalId: string, sessionId: string, access: "read" | "write") => Promise<boolean> | boolean;
   authorizeProject: (principalId: string, projectId: string) => Promise<boolean> | boolean;
   corsOrigins: string[];
@@ -172,7 +173,9 @@ export class RuntimeHost {
     if (typeof auth !== "string" || !auth.startsWith("Bearer ")) return null;
     const token = auth.slice(7);
     if (!token || token.length > 4096) return null;
-    return await this.options.authenticate(token);
+    const principalId = req.headers["x-m1cro-principal"];
+    const signature = req.headers["x-m1cro-principal-signature"];
+    return await this.options.authenticate(token, typeof principalId === "string" ? principalId : undefined, typeof signature === "string" ? signature : undefined);
   }
   private async command(req: IncomingMessage, res: ServerResponse, session: SessionMeta): Promise<void> {
     const body = await this.readJson(req);
@@ -325,8 +328,16 @@ export function createLocalRuntimeHost(options: Omit<RuntimeHostOptions, "authen
   if (token.length < 32) throw new Error("Local runtime token must contain at least 32 characters");
   return new RuntimeHost({
     ...options,
-    authenticate: candidate => candidate === token ? "local-user" : null,
-    authorizeProject: principal => principal === "local-user",
-    authorizeSession: (principal, sessionId) => principal === "local-user" && ID.test(sessionId),
+    authenticate: (candidate, principalId, signature) => {
+      if (candidate !== token) return null;
+      if (!principalId && !signature) return "local-user";
+      if (!principalId || !/^[A-Za-z0-9_-]{1,80}$/.test(principalId) || !signature) return null;
+      const expected = createHmac("sha256", token).update("m1cro-principal:" + principalId).digest();
+      let supplied: Buffer;
+      try { supplied = Buffer.from(signature, "base64url"); } catch { return null; }
+      return supplied.length === expected.length && timingSafeEqual(supplied, expected) ? principalId : null;
+    },
+    authorizeProject: principal => /^[A-Za-z0-9_-]{1,80}$/.test(principal),
+    authorizeSession: (principal, sessionId) => /^[A-Za-z0-9_-]{1,80}$/.test(principal) && ID.test(sessionId),
   });
 }

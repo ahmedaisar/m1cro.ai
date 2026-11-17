@@ -70,6 +70,7 @@ async function wakeRuntime(oidcToken: string | null): Promise<string> {
     const env: Record<string, string> = { M1CRO_RUNTIME_HOST: "0.0.0.0", M1CRO_RUNTIME_PORT: String(port) };
     if (process.env.M1CRO_RUNTIME_TOKEN) env.M1CRO_RUNTIME_TOKEN = process.env.M1CRO_RUNTIME_TOKEN;
     if (process.env.M1CRO_PROVIDER_CONFIG_KEY) env.M1CRO_PROVIDER_CONFIG_KEY = process.env.M1CRO_PROVIDER_CONFIG_KEY;
+    if (process.env.M1CRO_USERS_JSON) env.M1CRO_MULTI_USER_ENABLED = "1";
     const commandData = await apiRequest<{ command?: { exitCode?: number | null } }>(
       "/v2/sandboxes/sessions/" + encodeURIComponent(sessionId) + "/cmd?teamId=" + encodeURIComponent(teamId),
       token,
