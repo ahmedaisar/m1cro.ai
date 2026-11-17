@@ -1,5 +1,6 @@
-import { requestHasSession } from "@/lib/auth";
+import { requestSessionIdentity } from "@/lib/auth";
 
 export async function GET(request: Request): Promise<Response> {
-  return Response.json({ authenticated: requestHasSession(request) }, { headers: { "cache-control": "no-store" } });
+  const user = requestSessionIdentity(request);
+  return Response.json({ authenticated: user !== null, ...(user ? { user } : {}) }, { headers: { "cache-control": "no-store" } });
 }
