@@ -96,3 +96,6 @@ The Vercel project must have Secure Backend Access with OIDC Federation enabled 
 
 - [x] Coordinate runtime auto-start across concurrent web requests with a sandbox-scoped atomic lease.
 - [x] Add an authenticated provider inference probe and workspace connection-test control; report sanitized diagnostics only.
+- [x] Add per-user password-hash authentication, subject-bound signed sessions and BFF-signed runtime principals.
+- [x] Enforce owner-scoped projects and sessions across the web-to-runtime trust boundary; disable the shared default workspace when managed users are configured.
+- [ ] Replace environment-managed accounts with an external OIDC identity provider and production account lifecycle.
