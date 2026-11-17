@@ -54,6 +54,37 @@ describe("RuntimeHost", () => {
     const forged = await fetch(base + "/v1/sessions", { headers: { authorization: "Bearer " + token, "x-m1cro-principal": "user_victim", "x-m1cro-principal-signature": signature } });
     expect(forged.status).toBe(401);
   });
+  it("isolates project and session access by signed user principal", async () => {
+    const token = "e".repeat(64);
+    const project = { id: "project_a", name: "Alice project", ownerId: "user_a", workspacePath: "/tmp/m1cro-user-a", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+    const projectStore = {
+      list: async (ownerId: string) => ownerId === "user_a" ? [project] : [],
+      get: async (id: string) => id === project.id ? project : undefined,
+      create: async () => project,
+      ensureDefault: async () => project,
+    };
+    const host = createLocalRuntimeHost({
+      token, sessionStore: store, projectStore,
+      createAgent: () => ({ async *run() {} } as unknown as AgentRuntime),
+      corsOrigins: ["http://localhost:3000"], port: 0,
+    });
+    const address = await host.listen(); hosts.push(host);
+    const base = "http://" + address.host + ":" + address.port;
+    const signedHeaders = (principal: string) => ({
+      authorization: "Bearer " + token,
+      "x-m1cro-principal": principal,
+      "x-m1cro-principal-signature": createHmac("sha256", token).update("m1cro-principal:" + principal).digest("base64url"),
+      "content-type": "application/json",
+    });
+    const alice = signedHeaders("user_a"), bob = signedHeaders("user_b");
+    expect(await (await fetch(base + "/v1/projects", { headers: alice })).json()).toMatchObject({ projects: [{ id: "project_a" }] });
+    expect(await (await fetch(base + "/v1/projects", { headers: bob })).json()).toMatchObject({ projects: [] });
+    const created = await fetch(base + "/v1/sessions", { method: "POST", headers: alice, body: JSON.stringify({ projectId: "project_a" }) });
+    expect(created.status).toBe(201);
+    const sessionId = (await created.json() as { session: { id: string } }).session.id;
+    expect((await fetch(base + "/v1/sessions/" + sessionId, { headers: bob })).status).toBe(404);
+    expect((await fetch(base + "/v1/sessions/" + sessionId, { headers: alice })).status).toBe(200);
+  });
   it("reports protocol health and requires authentication", async () => {
     const { base } = await setup();
     expect(await (await fetch(base + "/health")).json()).toMatchObject({ protocol: "m1cro.runtime", version: 1, ready: true });
