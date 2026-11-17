@@ -47,14 +47,16 @@ The source-provenance assessment is documented in `docs/research/license-provena
 - [x] Versioned runtime event protocol and per-session event sequencing (PR #17).
 - [x] Initial Next.js web workspace shell (PR #18).
 - [x] Align the primary Vercel `m1cro.ai` project with the Next.js app root (`apps/web`), Node.js 22 and npm build commands.
-- [ ] Define and implement the HTTP/SSE transport adapter for the existing runtime protocol. See [web runtime bridge plan](architecture/web-runtime-bridge.md).
-- [ ] Add a Node.js runtime host around the shared `AgentRuntime`; do not create a second agent loop in Next.js.
-- [ ] Attach to, observe, cancel and resume active runtime sessions from the web client.
-- [ ] Render streamed assistant output, tool activity and explicit approval requests.
-- [ ] Replace sample dashboard content with authenticated/API-backed projects and sessions.
+- [x] Implement the initial HTTP/SSE transport adapter and Node.js host around the shared `AgentRuntime`; do not create a second agent loop in Next.js. See [runtime host](architecture/runtime-host.md).
+- [x] Persist session metadata and sequenced event history; rebuild the session list/replay log after restart and mark interrupted turns failed.
+- [x] Add the initial single-user signed-cookie gate and same-origin server-side BFF; keep the runtime bearer token server-side. See [web runtime connection](architecture/web-runtime-connection.md). Production multi-user identity remains open.
+- [x] Connect the web client to API-backed sessions and SSE event replay; support reconnecting to active sessions.
+- [x] Render streamed assistant output, tool activity and explicit approval/rejection; support turn cancellation.
+- [x] Replace sample session dashboard data with authenticated/API-backed session listing and creation.
+- [ ] Add project discovery/provisioning to the web UI.
 - [ ] Browser/editor integration foundations.
 
-**Phase 3 is in progress.** The web app currently provides a first-run browser-local workspace shell; it does not yet execute coding sessions. Do not label it a functional coding-agent client until the real runtime bridge acceptance criteria pass.
+**Phase 3 is in progress.** The web workspace now connects through a same-origin authenticated BFF to the shared Node.js runtime, with session persistence/replay, streamed events, tool approvals and cancellation. The first browser-to-runtime slice is implemented. Production multi-user identity, rate limiting, project provisioning, project discovery/provisioning and isolated remote execution remain open.
 
 ## Phase 4 — Hosted platform
 
