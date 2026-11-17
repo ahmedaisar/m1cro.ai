@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 type RuntimeEvent = { type: string; turnId?: string; [key: string]: unknown };
 type RuntimeEnvelope = { protocol: string; version: number; sessionId: string; sequence: number; event: RuntimeEvent };
 type RuntimeSession = { id: string; projectId: string; ownerId: string; createdAt: string; updatedAt: string; status: string; activeTurnId?: string };
+type RuntimeProject = { id: string; name: string; ownerId: string; createdAt: string; updatedAt: string };
 type ToolActivity = { callId: string; name: string; input?: unknown; output?: unknown; isError?: boolean };
 type TranscriptItem = { timestamp: string; data: { role: "user" | "assistant" | "tool"; content: string; toolCallId?: string } };
 
@@ -19,7 +20,9 @@ export default function WorkspaceClient() {
   const [events, setEvents] = useState<RuntimeEnvelope[]>([]);
   const [history, setHistory] = useState<TranscriptItem[]>([]);
   const [prompt, setPrompt] = useState("");
-  const [projectId, setProjectId] = useState("default");
+  const [projects, setProjects] = useState<RuntimeProject[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [newProjectName, setNewProjectName] = useState("");
   const [busy, setBusy] = useState(false);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState("");
@@ -54,6 +57,15 @@ export default function WorkspaceClient() {
     setHistory(data.messages ?? []);
   }, []);
 
+  const refreshProjects = useCallback(async () => {
+    const response = await fetch("/api/runtime/v1/projects", { cache: "no-store" });
+    if (response.status === 401) { router.replace("/login"); return; }
+    if (!response.ok) throw new Error("Unable to load projects (" + response.status + ")");
+    const data = await response.json() as { projects: RuntimeProject[] };
+    setProjects(data.projects ?? []);
+    setSelectedProjectId(current => current && data.projects.some(project => project.id === current) ? current : data.projects[0]?.id ?? "");
+  }, [router]);
+
   const refreshSessions = useCallback(async () => {
     const response = await fetch("/api/runtime/v1/sessions", { cache: "no-store" });
     if (response.status === 401) { router.replace("/login"); return; }
@@ -66,6 +78,7 @@ export default function WorkspaceClient() {
     if (!activeId && data.sessions.length) setActiveId(data.sessions.some(item => item.id === saved) ? saved! : data.sessions[0].id);
   }, [activeId, router]);
 
+  useEffect(() => { refreshProjects().catch(cause => setError(cause instanceof Error ? cause.message : "Projects unavailable")); }, [refreshProjects]);
   useEffect(() => { refreshSessions().catch(cause => setError(cause instanceof Error ? cause.message : "Runtime unavailable")); }, [refreshSessions]);
   useEffect(() => {
     if (!activeId) { setHistory([]); return; }
@@ -97,11 +110,12 @@ export default function WorkspaceClient() {
   }, [activeId, refreshSessions, refreshHistory]);
 
   async function createSession() {
+    if (!selectedProjectId) { setError("Create or select a project first"); return; }
     setError(""); setBusy(true);
     try {
       const response = await fetch("/api/runtime/v1/sessions", {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ projectId: projectId.trim() || "default" }),
+        body: JSON.stringify({ projectId: selectedProjectId }),
       });
       const data = await response.json() as { session?: RuntimeSession; error?: string };
       if (!response.ok || !data.session) throw new Error(data.error ?? "Could not create a session");
@@ -110,6 +124,20 @@ export default function WorkspaceClient() {
       setEvents([]);
       setHistory([]);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not create session"); }
+    finally { setBusy(false); }
+  }
+
+  async function createProject() {
+    if (!newProjectName.trim()) return;
+    setError(""); setBusy(true);
+    try {
+      const response = await fetch("/api/runtime/v1/projects", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: newProjectName }) });
+      const data = await response.json() as { project?: RuntimeProject; error?: string };
+      if (!response.ok || !data.project) throw new Error(data.error ?? "Could not create project");
+      setProjects(current => [...current, data.project!]);
+      setSelectedProjectId(data.project.id);
+      setNewProjectName("");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not create project"); }
     finally { setBusy(false); }
   }
 
@@ -166,7 +194,7 @@ export default function WorkspaceClient() {
       <section className="workspace-main">
         <header className="workspace-topbar"><div><span className="breadcrumb-muted">Workspace</span><span className="breadcrumb-sep">/</span><strong>{activeSession ? activeSession.projectId : "New session"}</strong></div><div className="topbar-right"><span className="runtime-pill"><i className={connected ? "online" : ""}></i>{connected ? "Connected" : "Waiting for runtime"}</span><button className="secondary-button" onClick={logout}>Sign out</button></div></header>
         <div className="session-workarea">
-          {!activeId ? <div className="welcome-panel"><div className="welcome-orb">m·</div><p className="eyebrow">ONE WORKSPACE. ANY MODEL.</p><h1>What are we building?</h1><p>Start a session against your configured runtime workspace.</p><div className="new-session-row"><input aria-label="Project identifier" value={projectId} onChange={event => setProjectId(event.target.value)} placeholder="Project identifier" /><button className="primary-button" onClick={createSession} disabled={busy}>New session</button></div></div> :
+          {!activeId ? <div className="welcome-panel"><div className="welcome-orb">m·</div><p className="eyebrow">ONE WORKSPACE. ANY MODEL.</p><h1>What are we building?</h1><p>Start a session against your configured runtime workspace.</p><div className="new-session-row"><select aria-label="Select project" value={selectedProjectId} onChange={event => setSelectedProjectId(event.target.value)} disabled={!projects.length}>{projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select><input aria-label="New project name" value={newProjectName} onChange={event => setNewProjectName(event.target.value)} placeholder="New project name" /><button className="secondary-button" onClick={createProject} disabled={busy || !newProjectName.trim()}>Add</button><button className="primary-button" onClick={createSession} disabled={busy || !selectedProjectId}>New session</button></div></div> :
           <div className="conversation">
             <div className="conversation-heading"><div><p className="eyebrow">CODING SESSION</p><h1>{activeSession?.projectId ?? "Workspace session"}</h1><span className="session-id">Session {activeId}</span></div><div className="conversation-actions"><span className="status-chip">{activeSession?.status ?? "loading"}</span>{activeTurnId && activeSession && (activeSession.status === "running" || activeSession.status === "awaiting_approval") && <button className="secondary-button" onClick={() => sendCommand({ type: "turn.cancel", turnId: activeTurnId })}>Stop turn</button>}</div></div>
             {runtimeUnavailable && <div className="notice notice-warning">Runtime connection is not configured. Set M1CRO_RUNTIME_URL and M1CRO_RUNTIME_TOKEN in the server environment, and make sure the runtime host is reachable over HTTPS.</div>}

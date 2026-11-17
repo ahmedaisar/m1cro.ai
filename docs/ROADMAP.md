@@ -79,3 +79,9 @@ The source-provenance assessment is documented in `docs/research/license-provena
 - Do not claim a sandbox guarantee until the executor and OS isolation boundary are independently tested.
 - Do not claim full MVP completion while the Phase 1 and Phase 2 items above remain open.
 - Validate Vercel preview deployments before any production promotion; the primary `m1cro.ai` project must use `apps/web` as its root directory.
+
+## Project registry and workspace provisioning
+
+The next runtime milestone introduces an authenticated project registry. Projects receive generated IDs and private directories under `M1CRO_PROJECTS_DIR`; clients select registered projects instead of submitting filesystem paths or arbitrary project identifiers. Sessions are bound to the selected project record, and the runtime resolves the workspace root server-side before constructing filesystem tools. The initial local runtime seeds a `default` project from the trusted `M1CRO_WORKSPACE_ROOT` setting for backward compatibility.
+
+Acceptance requirements: persistent project metadata, owner-scoped list/create, path containment checks, symlink escape rejection, session-to-project binding, and web project selection/creation.

@@ -8,6 +8,7 @@ import { JsonlSessionStore } from "@m1cro/sessions";
 import { registerFilesystemTools, ToolRegistry, Workspace } from "@m1cro/tools";
 import { createLocalRuntimeHost } from "./index.js";
 import { JsonlRuntimeSessionRegistry } from "./registry.js";
+import { JsonlRuntimeProjectRegistry } from "./projects.js";
 
 type ProviderKind = "openai-compatible" | "anthropic" | "ollama";
 const defaults: Record<ProviderKind, { baseUrl: string; model: string }> = {
@@ -42,21 +43,26 @@ export async function startRuntimeHost(): Promise<void> {
   const workspaceRoot = path.resolve(process.env.M1CRO_WORKSPACE_ROOT ?? process.cwd());
   const storageRoot = path.resolve(process.env.M1CRO_DATA_DIR ?? path.join(os.homedir(), ".m1cro"));
   const sessionRoot = path.join(storageRoot, "sessions");
+  const projectsRoot = path.resolve(process.env.M1CRO_PROJECTS_DIR ?? path.join(storageRoot, "projects"));
   await preparePrivateDirectory(storageRoot);
   await preparePrivateDirectory(sessionRoot);
+  await preparePrivateDirectory(projectsRoot);
   const sessionStore = new JsonlSessionStore(id => path.join(sessionRoot, id + ".jsonl"));
   const registryStore = new JsonlRuntimeSessionRegistry(path.join(storageRoot, "runtime-sessions.jsonl"));
+  const projectStore = new JsonlRuntimeProjectRegistry(path.join(storageRoot, "projects.jsonl"), projectsRoot);
+  await projectStore.ensureDefault("local-user", "default", "Default workspace", workspaceRoot);
   const configured = providerFromEnvironment();
   const host = createLocalRuntimeHost({
     token,
     sessionStore,
     registryStore,
+    projectStore,
     corsOrigins: (process.env.M1CRO_CORS_ORIGINS ?? "http://localhost:3000").split(",").map(value => value.trim()).filter(Boolean),
     host: process.env.M1CRO_RUNTIME_HOST ?? "127.0.0.1",
     port: Number(process.env.M1CRO_RUNTIME_PORT ?? "8787"),
-    createAgent: (approval, store) => {
+    createAgent: (approval, store, projectWorkspaceRoot) => {
       const tools = new ToolRegistry();
-      registerFilesystemTools(tools, new Workspace({ root: workspaceRoot }));
+      registerFilesystemTools(tools, new Workspace({ root: projectWorkspaceRoot ?? workspaceRoot }));
       return new AgentRuntime({ provider: configured.provider, model: configured.model, tools, policy: new DefaultPolicy(), approval, sessionStore: store });
     },
   });

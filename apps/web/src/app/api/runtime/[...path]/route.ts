@@ -4,7 +4,7 @@ export const runtime = "nodejs";
 type RouteContext = { params: Promise<{ path: string[] }> };
 
 function validPath(parts: string[]): boolean {
-  if (parts.length === 2 && parts[0] === "v1" && parts[1] === "sessions") return true;
+  if (parts.length === 2 && parts[0] === "v1" && (parts[1] === "sessions" || parts[1] === "projects")) return true;
   if (parts.length === 3 && parts[0] === "v1" && parts[1] === "sessions" && /^[A-Za-z0-9_-]{1,80}$/.test(parts[2])) return true;
   return parts.length === 4
     && parts[0] === "v1"

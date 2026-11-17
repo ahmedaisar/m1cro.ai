@@ -4,16 +4,14 @@ import { AgentRuntime, type ApprovalController, type ApprovalDecision, type Appr
 import { RuntimeEventSequencer, RUNTIME_PROTOCOL_NAME, RUNTIME_PROTOCOL_VERSION, isRuntimeEventEnvelope, type RuntimeCommand, type RuntimeEvent, type RuntimeEventEnvelope } from "@m1cro/protocol";
 import type { SessionStore } from "@m1cro/sessions";
 import type { RuntimeSessionRegistry, RuntimeSessionRecord } from "./registry.js";
-
+import type { RuntimeProjectRegistry } from "./projects.js";
 export interface RuntimeHostOptions {
-  createAgent: (approval: ApprovalController, sessionStore: SessionStore) => AgentRuntime;
+  createAgent: (approval: ApprovalController, sessionStore: SessionStore, workspaceRoot?: string) => AgentRuntime;
+  projectStore?: RuntimeProjectRegistry;
   sessionStore: SessionStore;
   registryStore?: RuntimeSessionRegistry;
-  /** Resolve identity from an opaque bearer token. Return null to reject. */
   authenticate: (token: string) => Promise<string | null> | string | null;
-  /** Authorize a principal against a session id, including read/write access. */
   authorizeSession: (principalId: string, sessionId: string, access: "read" | "write") => Promise<boolean> | boolean;
-  /** Project/workspace ownership check for session creation. */
   authorizeProject: (principalId: string, projectId: string) => Promise<boolean> | boolean;
   corsOrigins: string[];
   maxBodyBytes?: number;
@@ -27,7 +25,6 @@ interface PendingTurn { controller: AbortController; turnId: string; done: Promi
 interface DeferredApproval { request: ApprovalRequest; resolve: (decision: ApprovalDecision) => void; reject: (error: Error) => void; settled: boolean }
 const ID = /^[A-Za-z0-9_-]{1,80}$/;
 const SAFE_HEADERS = { "cache-control": "no-cache, no-transform", "x-content-type-options": "nosniff" };
-
 export class RuntimeHost {
   private server: Server | undefined;
   private readonly sessions = new Map<string, SessionMeta>();
@@ -101,13 +98,28 @@ export class RuntimeHost {
       }
       const principal = await this.principal(req);
       if (!principal) { this.send(res, 401, { error: "Unauthorized" }); return; }
+      if (req.method === "GET" && req.url === "/v1/projects") {
+        if (!this.options.projectStore) { this.send(res, 404, { error: "Project registry is not configured" }); return; }
+        this.send(res, 200, { projects: await this.options.projectStore.list(principal) }); return;
+      }
+      if (req.method === "POST" && req.url === "/v1/projects") {
+        if (!this.options.projectStore) { this.send(res, 404, { error: "Project registry is not configured" }); return; }
+        const body = await this.readJson(req);
+        if (!isRecord(body) || typeof body.name !== "string") { this.send(res, 400, { error: "name is required" }); return; }
+        try { this.send(res, 201, { project: await this.options.projectStore.create(principal, body.name) }); }
+        catch (error) { this.send(res, 400, { error: error instanceof Error ? error.message : "Invalid project" }); }
+        return;
+      }
       if (req.method === "GET" && req.url === "/v1/sessions") {
         this.send(res, 200, { sessions: [...this.sessions.values()].filter(s => s.ownerId === principal) }); return;
       }
       if (req.method === "POST" && req.url === "/v1/sessions") {
         const body = await this.readJson(req);
         if (!isRecord(body) || typeof body.projectId !== "string" || !body.projectId.trim() || body.projectId.length > 160) { this.send(res, 400, { error: "projectId is required" }); return; }
-        if (!await this.options.authorizeProject(principal, body.projectId)) { this.send(res, 403, { error: "Project access denied" }); return; }
+        if (this.options.projectStore) {
+          const project = await this.options.projectStore.get(body.projectId);
+          if (!project || project.ownerId !== principal) { this.send(res, 403, { error: "Project access denied" }); return; }
+        } else if (!await this.options.authorizeProject(principal, body.projectId)) { this.send(res, 403, { error: "Project access denied" }); return; }
         const id = randomUUID().replaceAll("-", "");
         const now = new Date().toISOString();
         const meta: SessionMeta = { id, projectId: body.projectId, ownerId: principal, createdAt: now, updatedAt: now, activeTurnId: undefined, status: "idle" };
@@ -119,7 +131,8 @@ export class RuntimeHost {
       if (!match) { this.send(res, 404, { error: "Not found" }); return; }
       const [, sessionId, resource] = match;
       const session = this.sessions.get(sessionId!);
-      if (!session || !await this.options.authorizeSession(principal, sessionId!, resource === "commands" ? "write" : "read")) { this.send(res, 404, { error: "Session not found" }); return; }
+      const sessionProject = session && this.options.projectStore ? await this.options.projectStore.get(session.projectId) : undefined;
+      if (!session || (this.options.projectStore && (!sessionProject || sessionProject.ownerId !== principal)) || !await this.options.authorizeSession(principal, sessionId!, resource === "commands" ? "write" : "read")) { this.send(res, 404, { error: "Session not found" }); return; }
       if (!resource && req.method === "GET") { this.send(res, 200, { session }); return; }
       if (resource === "history" && req.method === "GET") {
         const query = new URL(req.url ?? "/", "http://localhost").searchParams;
@@ -156,7 +169,9 @@ export class RuntimeHost {
       let turnId = "";
       const done = (async () => {
         try {
-          const agent = this.options.createAgent(approval, this.options.sessionStore);
+          const project = await this.options.projectStore?.get(session.projectId);
+          if (this.options.projectStore && (!project || project.ownerId !== session.ownerId)) throw new Error("Workspace unavailable");
+          const agent = this.options.createAgent(approval, this.options.sessionStore, project?.workspacePath);
           for await (const event of agent.run({ sessionId: session.id, prompt: body.prompt, signal: controller.signal })) {
             turnId ||= event.turnId;
             const previousStatus = session.status;
@@ -240,7 +255,6 @@ export class RuntimeHost {
     let heartbeat: NodeJS.Timeout;
     let poll: NodeJS.Timeout;
     heartbeat = setInterval(() => { if (!res.destroyed) res.write(": keep-alive\n\n"); }, 15_000);
-    // Hold the response open; future events are polled from the retained event log.
     let next = events.at(-1)?.sequence ?? cursor;
     poll = setInterval(() => {
       if (res.destroyed) { clearInterval(poll); clearInterval(heartbeat); return; }
@@ -289,7 +303,6 @@ function mapStatus(status: string): SessionMeta["status"] {
   if (status === "failed" || status === "interrupted") return "failed";
   return "idle";
 }
-/** Minimal trusted local-development factory. Production deployments must supply identity and project authorization. */
 export function createLocalRuntimeHost(options: Omit<RuntimeHostOptions, "authenticate" | "authorizeSession" | "authorizeProject"> & { token: string }): RuntimeHost {
   const token = options.token;
   if (token.length < 32) throw new Error("Local runtime token must contain at least 32 characters");

@@ -7,8 +7,8 @@
 .auth-copy{color:#9aa3b4;font-size:13px;line-height:1.7;margin:0 0 27px}
 .auth-form{display:grid;gap:10px}
 .auth-form label{font-size:11px;color:#b5bdca;font-weight:650}
-.auth-form input,.new-session-row input{width:100%;height:44px;border:1px solid #303849;border-radius:9px;background:#0b0f17;color:#f3f4f8;padding:0 13px;outline:none}
-.auth-form input:focus,.new-session-row input:focus,.composer textarea:focus{border-color:#8b70df;box-shadow:0 0 0 3px #8b70df22}
+.auth-form input,.new-session-row input,.new-session-row select{width:100%;height:44px;border:1px solid #303849;border-radius:9px;background:#0b0f17;color:#f3f4f8;padding:0 13px;outline:none}
+.auth-form input:focus,.new-session-row input:focus,.new-session-row select:focus,.composer textarea:focus{border-color:#8b70df;box-shadow:0 0 0 3px #8b70df22}
 .auth-submit{width:100%;margin-top:9px;justify-content:center}
 .auth-footnote{font-size:10px;color:#687386;text-align:center;margin:24px 0 0}
 .form-error{font-size:11px;color:#fca5a5;margin:0}
@@ -46,7 +46,7 @@
 .session-workarea{flex:1;min-height:0;padding:32px 36px 18px;display:flex;flex-direction:column}
 .welcome-panel{margin:auto;text-align:center;max-width:560px;width:100%}.welcome-orb{width:58px;height:58px;border-radius:18px;display:grid;place-items:center;margin:0 auto 25px;background:linear-gradient(145deg,#a78bfa,#7653db);color:white;font-size:29px;font-weight:800;box-shadow:0 12px 40px #7956dc55}.welcome-orb.small{width:42px;height:42px;border-radius:13px;font-size:20px;margin-bottom:15px}
 .welcome-panel h1{font-size:36px;letter-spacing:-1.5px;margin:9px 0}.welcome-panel>p:not(.eyebrow){font-size:13px;color:#8992a5;line-height:1.7}
-.new-session-row{display:flex;gap:10px;margin:25px auto 0;max-width:390px}.new-session-row input{height:42px}
+.new-session-row{display:flex;gap:10px;margin:25px auto 0;max-width:640px;align-items:center}.new-session-row input,.new-session-row select{height:42px;min-width:0;flex:1}.new-session-row select{border:1px solid #303849;border-radius:9px;background:#0b0f17;color:#f3f4f8;padding:0 10px}
 .conversation{width:min(100%,940px);margin:0 auto;display:flex;flex-direction:column;gap:20px}
 .conversation-heading{display:flex;align-items:center;justify-content:space-between;padding-bottom:17px;border-bottom:1px solid #202634}
 .conversation-heading h1{font-size:23px;letter-spacing:-.6px;margin:5px 0}.conversation-heading .eyebrow{margin:0}.session-id{font-size:9px;color:#6f7a8d;font-family:ui-monospace,monospace}
