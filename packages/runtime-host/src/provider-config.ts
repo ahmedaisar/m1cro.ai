@@ -26,7 +26,7 @@ export function validateProviderConfig(value: unknown): RuntimeProviderConfig {
     throw new Error("Provider base URL must be HTTP(S) without credentials, query strings or fragments");
   }
   if (kind === "runpod") {
-    const endpointMatch = parsed.pathname.match(/^\\/v2\\/([A-Za-z0-9_-]{1,128})\\/openai\\/v1\\/?$/);
+    const endpointMatch = parsed.pathname.match(/^\/v2\/([A-Za-z0-9_-]{1,128})\/openai\/v1\/?$/);
     if (parsed.protocol !== "https:" || parsed.hostname !== "api.runpod.ai" || parsed.port || !endpointMatch) {
       throw new Error("Runpod base URL must use https://api.runpod.ai/v2/<endpoint-id>/openai/v1");
     }
