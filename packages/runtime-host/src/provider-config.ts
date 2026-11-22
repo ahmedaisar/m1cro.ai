@@ -2,7 +2,7 @@ import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { chmod, lstat, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-export type ProviderKind = "openai-compatible" | "anthropic" | "ollama";
+export type ProviderKind = "openai-compatible" | "anthropic" | "ollama" | "runpod";
 export interface RuntimeProviderConfig {
   kind: ProviderKind;
   model: string;
@@ -10,7 +10,7 @@ export interface RuntimeProviderConfig {
   apiKey?: string;
 }
 
-const PROVIDERS = new Set<ProviderKind>(["openai-compatible", "anthropic", "ollama"]);
+const PROVIDERS = new Set<ProviderKind>(["openai-compatible", "anthropic", "ollama", "runpod"]);
 
 export function validateProviderConfig(value: unknown): RuntimeProviderConfig {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Provider configuration must be an object");
@@ -24,6 +24,12 @@ export function validateProviderConfig(value: unknown): RuntimeProviderConfig {
   try { parsed = new URL(baseUrl); } catch { throw new Error("A valid provider base URL is required"); }
   if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password || parsed.search || parsed.hash) {
     throw new Error("Provider base URL must be HTTP(S) without credentials, query strings or fragments");
+  }
+  if (kind === "runpod") {
+    const endpointMatch = parsed.pathname.match(/^\\/v2\\/([A-Za-z0-9_-]{1,128})\\/openai\\/v1\\/?$/);
+    if (parsed.protocol !== "https:" || parsed.hostname !== "api.runpod.ai" || parsed.port || !endpointMatch) {
+      throw new Error("Runpod base URL must use https://api.runpod.ai/v2/<endpoint-id>/openai/v1");
+    }
   }
   const apiKey = typeof input.apiKey === "string" ? input.apiKey.trim() : "";
   if (kind !== "ollama" && (apiKey.length < 8 || apiKey.length > 2048 || /[\r\n\0]/.test(apiKey))) {
