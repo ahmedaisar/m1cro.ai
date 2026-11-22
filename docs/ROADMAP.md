@@ -53,8 +53,9 @@ The source-provenance assessment is documented in `docs/research/license-provena
 - [x] Connect the web client to API-backed sessions and SSE event replay; support reconnecting to active sessions.
 - [x] Render streamed assistant output, tool activity and explicit approval/rejection; support turn cancellation.
 - [x] Replace sample session dashboard data with authenticated/API-backed session listing and creation.
-- [ ] Add project discovery/provisioning to the web UI.
-- [ ] Browser/editor integration foundations.
+- [x] Add project discovery/provisioning to the web UI, including owner-scoped project selection and first-project creation.
+- [x] Establish the shared session deep-link contract and authenticated browser session handoff. See [browser/editor integration](integrations/browser-editor.md).
+- [ ] Build native browser-extension and editor adapters on the shared runtime protocol.
 
 **Phase 3 is in progress.** The web workspace now connects through a same-origin authenticated BFF to the shared Node.js runtime, with session persistence/replay, streamed events, tool approvals and cancellation. The first browser-to-runtime slice is implemented. Production multi-user identity, rate limiting, project provisioning, project discovery/provisioning and isolated remote execution remain open.
 
