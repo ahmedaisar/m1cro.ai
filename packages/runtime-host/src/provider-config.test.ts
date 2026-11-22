@@ -70,3 +70,18 @@ describe("Runpod provider configuration", () => {
     expect(() => validateProviderConfig({ ...base, baseUrl: "https://api.runpod.ai/v2/endpoint/other" })).toThrow("Runpod base URL");
   });
 });
+
+
+it("encrypts Runpod API keys in the provider config store", async () => {
+  const { file } = await fixture();
+  const config = {
+    kind: "runpod",
+    model: "Qwen/Qwen3-32B-AWQ",
+    baseUrl: "https://api.runpod.ai/v2/endpoint_123/openai/v1",
+    apiKey: "runpod-secret-key",
+  } as const;
+  await new EncryptedProviderConfigStore(file, key).save(config);
+  const raw = await readFile(file, "utf8");
+  expect(raw).not.toContain(config.apiKey);
+  expect(await new EncryptedProviderConfigStore(file, key).load()).toEqual(config);
+});
