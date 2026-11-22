@@ -38,7 +38,7 @@ function providerFromEnvironment(): RuntimeProviderConfig {
 }
 function createProvider(config: RuntimeProviderConfig): ModelProvider {
   if (config.kind === "runpod") {
-    const endpointId = new URL(config.baseUrl).pathname.match(/^\\/v2\\/([A-Za-z0-9_-]{1,128})\\/openai\\/v1$/)?.[1];
+    const endpointId = new URL(config.baseUrl).pathname.match(/^\/v2\/([A-Za-z0-9_-]{1,128})\/openai\/v1$/)?.[1];
     if (!endpointId || !config.apiKey) throw new Error("Runpod provider configuration is incomplete");
     return new RunpodServerlessProvider({ endpointId, apiKey: config.apiKey });
   }
