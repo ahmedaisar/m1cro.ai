@@ -30,6 +30,7 @@ export default function WorkspaceClient() {
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState("");
   const [runtimeUnavailable, setRuntimeUnavailable] = useState(false);
+  const [sessionLinkCopied, setSessionLinkCopied] = useState(false);
   const [providerStatus, setProviderStatus] = useState<ProviderStatus | null>(null);
   const [providerKind, setProviderKind] = useState("openai-compatible");
   const [providerModel, setProviderModel] = useState("gpt-4o-mini");
@@ -62,6 +63,26 @@ export default function WorkspaceClient() {
   }, [events]);
   const approval = [...events].reverse().find(item => item.event.type === "approval.required" &&
     !events.some(other => other.event.type === "approval.resolved" && other.event.callId === item.event.callId))?.event;
+  function selectSession(sessionId: string) {
+    setActiveId(sessionId);
+    const url = new URL(window.location.href);
+    url.searchParams.set("session", sessionId);
+    window.history.pushState({ ...window.history.state, m1croSession: sessionId }, "", url);
+  }
+
+  async function copySessionLink() {
+    if (!activeId) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set("session", activeId);
+    try {
+      await navigator.clipboard.writeText(url.toString());
+      setSessionLinkCopied(true);
+      window.setTimeout(() => setSessionLinkCopied(false), 1800);
+    } catch {
+      setError("Your browser blocked clipboard access. Copy the session URL from the address bar instead.");
+    }
+  }
+
   const refreshHistory = useCallback(async (sessionId: string) => {
     const response = await fetch("/api/runtime/v1/sessions/" + encodeURIComponent(sessionId) + "/history", { cache: "no-store" });
     if (!response.ok) return;
@@ -92,8 +113,14 @@ export default function WorkspaceClient() {
     const data = await response.json() as { sessions: RuntimeSession[] };
     setSessions(data.sessions);
     setRuntimeUnavailable(false);
+    const requested = typeof window !== "undefined" ? new URL(window.location.href).searchParams.get("session") : null;
     const saved = typeof window !== "undefined" ? window.localStorage.getItem("m1cro-active-session") : null;
-    if (!activeId && data.sessions.length) setActiveId(data.sessions.some(item => item.id === saved) ? saved! : data.sessions[0].id);
+    if (!activeId && data.sessions.length) {
+      const initialSession = requested && data.sessions.some(item => item.id === requested)
+        ? requested
+        : saved && data.sessions.some(item => item.id === saved) ? saved : data.sessions[0].id;
+      setActiveId(initialSession);
+    }
   }, [activeId, router]);
 
   useEffect(() => {
@@ -116,6 +143,29 @@ export default function WorkspaceClient() {
     if (!activeId) { setHistory([]); return; }
     refreshHistory(activeId).catch(() => {});
   }, [activeId, refreshHistory]);
+
+  useEffect(() => {
+    if (!activeId) return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("session") !== activeId) {
+      url.searchParams.set("session", activeId);
+      window.history.replaceState(window.history.state, "", url);
+    }
+    document.title = (activeSession?.projectId ?? "Session") + " · m1cro.ai";
+  }, [activeId, activeSession?.projectId]);
+
+  useEffect(() => {
+    const restoreFromUrl = () => {
+      const requested = new URL(window.location.href).searchParams.get("session");
+      if (!requested) {
+        setActiveId("");
+        return;
+      }
+      if (sessions.some(session => session.id === requested)) setActiveId(requested);
+    };
+    window.addEventListener("popstate", restoreFromUrl);
+    return () => window.removeEventListener("popstate", restoreFromUrl);
+  }, [sessions]);
   useEffect(() => {
     if (!activeId) { setEvents([]); setConnected(false); return; }
     window.localStorage.setItem("m1cro-active-session", activeId);
@@ -153,7 +203,7 @@ export default function WorkspaceClient() {
       const data = await response.json() as { session?: RuntimeSession; error?: string };
       if (!response.ok || !data.session) throw new Error(data.error ?? "Could not create a session");
       setSessions(current => [data.session!, ...current]);
-      setActiveId(data.session.id);
+      selectSession(data.session.id);
       setEvents([]);
       setHistory([]);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not create session"); }
@@ -254,7 +304,7 @@ export default function WorkspaceClient() {
         <div className="nav-list"><div className="nav-item active"><span>▦</span> Sessions</div><div className="nav-item"><span>▱</span> Projects</div><div className="nav-item"><span>◷</span> Activity</div></div>
         <div className="session-list-heading"><span className="nav-label">RECENT SESSIONS</span><button className="icon-button" onClick={createSession} disabled={busy || runtimeUnavailable || !selectedProjectId} aria-label="New session">＋</button></div>
         <div className="session-list">
-          {sessions.map(session => <button key={session.id} className={"session-item " + (session.id === activeId ? "selected" : "")} onClick={() => setActiveId(session.id)}>
+          {sessions.map(session => <button key={session.id} className={"session-item " + (session.id === activeId ? "selected" : "")} onClick={() => selectSession(session.id)}>
             <span className="session-dot" data-status={session.status}></span><span className="session-item-copy"><strong>{session.projectId}</strong><small>{shortId(session.id)} · {timeLabel(session.updatedAt)}</small></span>
           </button>)}
           {!sessions.length && <p className="empty-small">No sessions yet. Start a new one.</p>}
@@ -285,7 +335,7 @@ export default function WorkspaceClient() {
             )}
           </div> :
           <div className="conversation">
-            <div className="conversation-heading"><div><p className="eyebrow">CODING SESSION</p><h1>{activeSession?.projectId ?? "Workspace session"}</h1><span className="session-id">Session {activeId}</span></div><div className="conversation-actions"><span className="status-chip">{activeSession?.status ?? "loading"}</span>{activeTurnId && activeSession && (activeSession.status === "running" || activeSession.status === "awaiting_approval") && <button className="secondary-button" onClick={() => sendCommand({ type: "turn.cancel", turnId: activeTurnId })}>Stop turn</button>}</div></div>
+            <div className="conversation-heading"><div><p className="eyebrow">CODING SESSION</p><h1>{activeSession?.projectId ?? "Workspace session"}</h1><span className="session-id">Session {activeId}</span></div><div className="conversation-actions"><span className="status-chip">{activeSession?.status ?? "loading"}</span><button type="button" className="secondary-button session-share-button" onClick={copySessionLink}>{sessionLinkCopied ? "Link copied" : "Copy session link"}</button>{activeTurnId && activeSession && (activeSession.status === "running" || activeSession.status === "awaiting_approval") && <button className="secondary-button" onClick={() => sendCommand({ type: "turn.cancel", turnId: activeTurnId })}>Stop turn</button>}</div></div>
             {runtimeUnavailable && <div className="notice notice-warning">Runtime connection is not configured. Set M1CRO_RUNTIME_URL and M1CRO_RUNTIME_TOKEN in the server environment, and make sure the runtime host is reachable over HTTPS.</div>}
             {error && <div className="notice notice-error">{error}</div>}
             {history.length === 0 && events.length === 0 && <div className="conversation-empty"><div className="welcome-orb small">m·</div><h2>Ready when you are.</h2><p>Describe a task. The shared runtime will stream its progress here.</p></div>}
