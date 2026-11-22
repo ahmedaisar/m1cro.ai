@@ -23,6 +23,7 @@ export default function WorkspaceClient() {
   const [history, setHistory] = useState<TranscriptItem[]>([]);
   const [prompt, setPrompt] = useState("");
   const [projects, setProjects] = useState<RuntimeProject[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(true);
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [newProjectName, setNewProjectName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -69,12 +70,18 @@ export default function WorkspaceClient() {
   }, []);
 
   const refreshProjects = useCallback(async () => {
-    const response = await fetch("/api/runtime/v1/projects", { cache: "no-store" });
-    if (response.status === 401) { router.replace("/login"); return; }
-    if (!response.ok) throw new Error("Unable to load projects (" + response.status + ")");
-    const data = await response.json() as { projects: RuntimeProject[] };
-    setProjects(data.projects ?? []);
-    setSelectedProjectId(current => current && data.projects.some(project => project.id === current) ? current : data.projects[0]?.id ?? "");
+    setProjectsLoading(true);
+    try {
+      const response = await fetch("/api/runtime/v1/projects", { cache: "no-store" });
+      if (response.status === 401) { router.replace("/login"); return; }
+      if (!response.ok) throw new Error("Unable to load projects (" + response.status + ")");
+      const data = await response.json() as { projects: RuntimeProject[] };
+      const nextProjects = data.projects ?? [];
+      setProjects(nextProjects);
+      setSelectedProjectId(current => current && nextProjects.some(project => project.id === current) ? current : nextProjects[0]?.id ?? "");
+    } finally {
+      setProjectsLoading(false);
+    }
   }, [router]);
 
   const refreshSessions = useCallback(async () => {
@@ -153,10 +160,11 @@ export default function WorkspaceClient() {
   }
 
   async function createProject() {
-    if (!newProjectName.trim()) return;
+    const projectName = newProjectName.trim();
+    if (!projectName || busy || runtimeUnavailable) return;
     setError(""); setBusy(true);
     try {
-      const response = await fetch("/api/runtime/v1/projects", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: newProjectName }) });
+      const response = await fetch("/api/runtime/v1/projects", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: projectName }) });
       const data = await response.json() as { project?: RuntimeProject; error?: string };
       if (!response.ok || !data.project) throw new Error(data.error ?? "Could not create project");
       setProjects(current => [...current, data.project!]);
@@ -255,7 +263,27 @@ export default function WorkspaceClient() {
       <section className="workspace-main">
         <header className="workspace-topbar"><div><span className="breadcrumb-muted">Workspace</span><span className="breadcrumb-sep">/</span><strong>{activeSession ? activeSession.projectId : "New session"}</strong></div><div className="topbar-right"><span className="provider-pill" title={providerStatus?.baseUrl ?? "Provider status unavailable"}>{providerStatus ? (providerStatus.kind ?? "Provider") + " · " + (providerStatus.model ?? "No model") + (providerStatus.authenticationRequired && !providerStatus.credentialConfigured ? " · API key missing" : " · " + (providerStatus.connectivity === "connected" ? "connected" : providerStatus.connectivity === "error" ? "connection failed" : providerStatus.connectivity === "not_checked" ? "not tested" : "configured")) : "Provider status unavailable"}</span><details className="provider-settings"><summary>Configure</summary><form className="provider-settings-panel" onSubmit={saveProvider}><label>Provider<select value={providerKind} onChange={event => { const next = event.target.value; setProviderKind(next); setProviderBaseUrl(next === "anthropic" ? "https://api.anthropic.com" : next === "ollama" ? "http://127.0.0.1:11434" : "https://api.openai.com/v1"); }}><option value="openai-compatible">OpenAI-compatible</option><option value="anthropic">Anthropic</option><option value="ollama">Ollama</option></select></label><label>Model<input value={providerModel} onChange={event => setProviderModel(event.target.value)} required maxLength={160} placeholder="Model identifier" /></label><label>API base URL<input value={providerBaseUrl} onChange={event => setProviderBaseUrl(event.target.value)} required type="url" placeholder="https://api.openai.com/v1" /></label><label>API key {providerKind === "ollama" ? "(optional)" : ""}<input type="password" autoComplete="new-password" value={providerApiKey} onChange={event => setProviderApiKey(event.target.value)} placeholder={providerKind === "ollama" ? "Optional" : providerStatus?.kind === providerKind && providerStatus.credentialConfigured ? "Leave blank to keep current key" : "Enter provider API key"} required={providerKind !== "ollama" && !(providerStatus?.kind === providerKind && providerStatus.credentialConfigured)} /></label><div className="provider-actions"><button className="primary-button" type="submit" disabled={providerSaving}>{providerSaving ? "Saving…" : "Save provider"}</button><button className="secondary-button" type="button" onClick={testProvider} disabled={providerProbing || providerSaving || (!providerStatus?.credentialConfigured && providerKind !== "ollama")}>{providerProbing ? "Testing…" : "Test saved connection"}</button></div>{providerMessage && <small role="status">{providerMessage}</small>}{providerProbe?.httpStatus && <small>HTTP status: {providerProbe.httpStatus}</small>}</form></details><span className="runtime-pill"><i className={connected ? "online" : ""}></i>{connected ? "Connected" : "Waiting for runtime"}</span><button className="secondary-button" onClick={logout}>Sign out</button></div></header>
         <div className="session-workarea">
-          {!activeId ? <div className="welcome-panel"><div className="welcome-orb">m·</div><p className="eyebrow">ONE WORKSPACE. ANY MODEL.</p><h1>What are we building?</h1><p>Start a session against your configured runtime workspace.</p><div className="new-session-row"><select aria-label="Select project" value={selectedProjectId} onChange={event => setSelectedProjectId(event.target.value)} disabled={!projects.length}>{projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select><input aria-label="New project name" value={newProjectName} onChange={event => setNewProjectName(event.target.value)} placeholder="New project name" /><button className="secondary-button" onClick={createProject} disabled={busy || !newProjectName.trim()}>Add</button><button className="primary-button" onClick={createSession} disabled={busy || !selectedProjectId}>New session</button></div></div> :
+          {!activeId ? <div className="welcome-panel">
+            <div className="welcome-orb">m·</div>
+            <p className="eyebrow">ONE WORKSPACE. ANY MODEL.</p>
+            <h1>{projectsLoading ? "Preparing your workspace…" : projects.length ? "What are we building?" : "Create your first project"}</h1>
+            <p>{projectsLoading ? "Loading your projects and recent sessions." : projects.length ? "Choose a project to start a new engineering session, or create another project." : "Projects keep your engineering work organised. Give your first project a name to get started."}</p>
+            {runtimeUnavailable && <div className="notice notice-warning">Your runtime is not available yet. Check the server runtime configuration before creating projects or sessions.</div>}
+            {error && <div className="notice notice-error" role="alert">{error}</div>}
+            {projectsLoading ? <div className="project-loading" role="status"><span className="auth-spinner" aria-hidden="true" />Loading projects…</div> : (
+              <div className="project-onboarding">
+                {projects.length > 0 && <label className="project-picker"><span>Current project</span><select aria-label="Select project" value={selectedProjectId} onChange={event => setSelectedProjectId(event.target.value)}>{projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>}
+                <form className="project-create-form" onSubmit={event => { event.preventDefault(); createProject(); }}>
+                  <label htmlFor="new-project-name">{projects.length ? "Create another project" : "Project name"}</label>
+                  <div className="project-create-controls">
+                    <input id="new-project-name" value={newProjectName} onChange={event => setNewProjectName(event.target.value)} placeholder="e.g. My next app" maxLength={120} required />
+                    <button className="secondary-button" type="submit" disabled={busy || runtimeUnavailable || !newProjectName.trim()}>{busy ? "Creating…" : "Create project"}</button>
+                  </div>
+                </form>
+                {projects.length > 0 && <button className="primary-button onboarding-start" onClick={createSession} disabled={busy || runtimeUnavailable || !selectedProjectId}>{busy ? "Please wait…" : "Start a session"}</button>}
+              </div>
+            )}
+          </div> :
           <div className="conversation">
             <div className="conversation-heading"><div><p className="eyebrow">CODING SESSION</p><h1>{activeSession?.projectId ?? "Workspace session"}</h1><span className="session-id">Session {activeId}</span></div><div className="conversation-actions"><span className="status-chip">{activeSession?.status ?? "loading"}</span>{activeTurnId && activeSession && (activeSession.status === "running" || activeSession.status === "awaiting_approval") && <button className="secondary-button" onClick={() => sendCommand({ type: "turn.cancel", turnId: activeTurnId })}>Stop turn</button>}</div></div>
             {runtimeUnavailable && <div className="notice notice-warning">Runtime connection is not configured. Set M1CRO_RUNTIME_URL and M1CRO_RUNTIME_TOKEN in the server environment, and make sure the runtime host is reachable over HTTPS.</div>}
