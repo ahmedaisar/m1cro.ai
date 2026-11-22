@@ -120,3 +120,19 @@
 @media(max-width:900px){.auth-layout{grid-template-columns:minmax(0,1fr) minmax(390px,.95fr)}.auth-aside{padding-left:34px;padding-right:34px}.auth-aside-copy h1{letter-spacing:-2px}}
 @media(max-width:680px){.auth-page{padding:0;background:radial-gradient(ellipse at 50% 0%,#241b40 0%,#0b0d14 52%,#080a0f 100%)}.auth-layout{display:flex;min-height:100svh;align-items:center;justify-content:center;padding:26px 18px}.auth-aside{display:none}.auth-content{width:100%;padding:0}.auth-card{width:min(100%,440px);padding:28px 23px;border:1px solid #292e3d;border-radius:17px;background:#10141eee;box-shadow:0 22px 70px #0008}.auth-mobile-brand{display:flex;padding:0 0 30px!important}.auth-card>.eyebrow{font-size:9px}.auth-card h2{font-size:28px}.auth-card .auth-copy{font-size:12px;margin-bottom:25px}.auth-form{gap:17px}.auth-field input{height:48px}.auth-content-foot{margin-top:22px;padding:0 10px}.auth-switch{margin-top:23px}}
 @media(prefers-reduced-motion:reduce){.auth-spinner{animation:none}.auth-field input{transition:none}}
+
+
+.auth-field-hint{font-size:10px;color:#778296;line-height:1.5}
+.project-onboarding{width:min(100%,620px);margin:28px auto 0;text-align:left;display:grid;gap:18px}
+.project-picker,.project-create-form{display:grid;gap:8px}
+.project-picker>span,.project-create-form>label{font-size:11px;color:#c3cada;font-weight:650}
+.project-picker select,.project-create-controls input{width:100%;height:44px;min-width:0;border:1px solid #303849;border-radius:9px;background:#0c1019;color:#f3f4f8;padding:0 13px;font:inherit;font-size:12px;outline:none}
+.project-picker select:focus,.project-create-controls input:focus{border-color:#9b80ed;box-shadow:0 0 0 3px #9b80ed24}
+.project-create-controls{display:flex;gap:9px}
+.project-create-controls input{flex:1}
+.project-create-controls .secondary-button{white-space:nowrap}
+.onboarding-start{width:100%;min-height:43px;display:flex;align-items:center;justify-content:center}
+.project-loading{display:flex;justify-content:center;align-items:center;gap:10px;color:#929caf;font-size:11px;padding:20px}
+.project-loading .auth-spinner{border-color:#7969a5;border-top-color:#d5c7ff}
+.welcome-panel>.notice{max-width:620px;margin:18px auto 0;text-align:left}
+@media(max-width:600px){.project-create-controls{flex-direction:column}.project-create-controls .secondary-button{min-height:42px}.project-onboarding{margin-top:22px}}
