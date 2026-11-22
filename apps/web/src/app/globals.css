@@ -136,3 +136,7 @@
 .project-loading .auth-spinner{border-color:#7969a5;border-top-color:#d5c7ff}
 .welcome-panel>.notice{max-width:620px;margin:18px auto 0;text-align:left}
 @media(max-width:600px){.project-create-controls{flex-direction:column}.project-create-controls .secondary-button{min-height:42px}.project-onboarding{margin-top:22px}}
+
+
+.session-share-button{white-space:nowrap}
+@media(max-width:760px){.conversation-actions{flex-wrap:wrap;justify-content:flex-end}.session-share-button{font-size:9px;padding:7px 9px}}
