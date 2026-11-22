@@ -32,7 +32,7 @@ function providerFromEnvironment(): RuntimeProviderConfig {
     return { kind, model, baseUrl: "https://api.runpod.ai/v2/" + endpointId + "/openai/v1", apiKey };
   }
   const baseUrl = process.env.M1CRO_BASE_URL ?? config.baseUrl;
-  if (!/^https?:\\/\\//i.test(baseUrl)) throw new Error("M1CRO_BASE_URL must use http or https");
+  if (!/^https?:\/\//i.test(baseUrl)) throw new Error("M1CRO_BASE_URL must use http or https");
   const apiKey = kind === "anthropic" ? process.env.ANTHROPIC_API_KEY : kind === "ollama" ? undefined : process.env.OPENAI_API_KEY;
   return { kind, model: process.env.M1CRO_MODEL ?? config.model, baseUrl, ...(apiKey ? { apiKey } : {}) };
 }
