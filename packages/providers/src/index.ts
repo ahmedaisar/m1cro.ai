@@ -297,10 +297,10 @@ export class RunpodServerlessProvider extends OpenAICompatibleProvider {
       baseUrl: "https://api.runpod.ai/v2/" + endpointId + "/openai/v1",
       providerId: "runpod",
       apiKey: options.apiKey,
-      fetcher: options.fetcher,
-      maxRetries: options.maxRetries,
-      retryBaseDelayMs: options.retryBaseDelayMs,
-      maxRetryDelayMs: options.maxRetryDelayMs,
+      ...(options.fetcher ? { fetcher: options.fetcher } : {}),
+      ...(options.maxRetries !== undefined ? { maxRetries: options.maxRetries } : {}),
+      ...(options.retryBaseDelayMs !== undefined ? { retryBaseDelayMs: options.retryBaseDelayMs } : {}),
+      ...(options.maxRetryDelayMs !== undefined ? { maxRetryDelayMs: options.maxRetryDelayMs } : {}),
     });
   }
 }
