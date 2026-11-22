@@ -142,6 +142,7 @@ export default function WorkspaceClient() {
   }, [activeId, refreshSessions, refreshHistory]);
 
   async function createSession() {
+    if (runtimeUnavailable) { setError("The runtime is unavailable. Check the server runtime configuration and try again."); return; }
     if (!selectedProjectId) { setError("Create or select a project first"); return; }
     setError(""); setBusy(true);
     try {
@@ -251,7 +252,7 @@ export default function WorkspaceClient() {
         <div className="workspace-switch"><span className="workspace-avatar">M</span><div><strong>Personal workspace</strong><small>Local runtime</small></div><span className="chevron">⌄</span></div>
         <div className="nav-label">WORKSPACE</div>
         <div className="nav-list"><div className="nav-item active"><span>▦</span> Sessions</div><div className="nav-item"><span>▱</span> Projects</div><div className="nav-item"><span>◷</span> Activity</div></div>
-        <div className="session-list-heading"><span className="nav-label">RECENT SESSIONS</span><button className="icon-button" onClick={createSession} disabled={busy} aria-label="New session">＋</button></div>
+        <div className="session-list-heading"><span className="nav-label">RECENT SESSIONS</span><button className="icon-button" onClick={createSession} disabled={busy || runtimeUnavailable || !selectedProjectId} aria-label="New session">＋</button></div>
         <div className="session-list">
           {sessions.map(session => <button key={session.id} className={"session-item " + (session.id === activeId ? "selected" : "")} onClick={() => setActiveId(session.id)}>
             <span className="session-dot" data-status={session.status}></span><span className="session-item-copy"><strong>{session.projectId}</strong><small>{shortId(session.id)} · {timeLabel(session.updatedAt)}</small></span>
@@ -268,8 +269,7 @@ export default function WorkspaceClient() {
             <p className="eyebrow">ONE WORKSPACE. ANY MODEL.</p>
             <h1>{projectsLoading ? "Preparing your workspace…" : projects.length ? "What are we building?" : "Create your first project"}</h1>
             <p>{projectsLoading ? "Loading your projects and recent sessions." : projects.length ? "Choose a project to start a new engineering session, or create another project." : "Projects keep your engineering work organised. Give your first project a name to get started."}</p>
-            {runtimeUnavailable && <div className="notice notice-warning">Your runtime is not available yet. Check the server runtime configuration before creating projects or sessions.</div>}
-            {error && <div className="notice notice-error" role="alert">{error}</div>}
+            {runtimeUnavailable ? <div className="notice notice-warning" role="status">Your runtime is not available yet. Check the server runtime configuration before creating projects or sessions.</div> : error ? <div className="notice notice-error" role="alert">{error}</div> : null}
             {projectsLoading ? <div className="project-loading" role="status"><span className="auth-spinner" aria-hidden="true" />Loading projects…</div> : (
               <div className="project-onboarding">
                 {projects.length > 0 && <label className="project-picker"><span>Current project</span><select aria-label="Select project" value={selectedProjectId} onChange={event => setSelectedProjectId(event.target.value)}>{projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>}
