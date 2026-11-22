@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { AnthropicProvider, OllamaProvider, OpenAICompatibleProvider, ProviderHttpError } from "./index.js";
+import { AnthropicProvider, OllamaProvider, OpenAICompatibleProvider, ProviderHttpError, RunpodServerlessProvider } from "./index.js";
 import type { ModelRequest } from "@m1cro/protocol";
 
 const request = (
@@ -330,5 +330,42 @@ describe("AnthropicProvider model discovery", () => {
     const provider = new AnthropicProvider({ fetcher });
     await expect(provider.discoverModels()).rejects.toThrow("invalid or repeated cursor");
     expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+});
+
+
+describe("RunpodServerlessProvider", () => {
+  it("uses the official endpoint URL for model discovery and preserves provider identity", async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toBe("https://api.runpod.ai/v2/endpoint_123/openai/v1/models");
+      expect(new Headers(init?.headers).get("authorization")).toBe("Bearer runpod-secret");
+      return Response.json({ data: [{ id: "Qwen/Qwen3-32B-AWQ", context_length: 32768 }] });
+    });
+    const provider = new RunpodServerlessProvider({ endpointId: "endpoint_123", apiKey: "runpod-secret", fetcher });
+    expect(provider.id).toBe("runpod");
+    await expect(provider.discoverModels()).resolves.toEqual([
+      { provider: "runpod", id: "Qwen/Qwen3-32B-AWQ", contextWindow: 32768, capabilities: {} },
+    ]);
+  });
+
+  it("streams chat completions through the Runpod OpenAI-compatible route", async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toBe("https://api.runpod.ai/v2/endpoint-abc/openai/v1/chat/completions");
+      expect(new Headers(init?.headers).get("authorization")).toBe("Bearer runpod-secret");
+      const body = JSON.parse(String(init?.body));
+      expect(body.model).toBe("Qwen/Qwen3-32B-AWQ");
+      expect(body.stream).toBe(true);
+      return sse(['data: {"choices":[{"delta":{"content":"hello"}}]}\\n\\n']);
+    });
+    const provider = new RunpodServerlessProvider({ endpointId: "endpoint-abc", apiKey: "runpod-secret", fetcher });
+    const events = [];
+    for await (const event of provider.stream({ ...request(), model: "Qwen/Qwen3-32B-AWQ" })) events.push(event);
+    expect(events).toContainEqual({ type: "text", text: "hello" });
+    expect(events.at(-1)).toEqual({ type: "done" });
+  });
+
+  it("rejects unsafe endpoint IDs and empty credentials", () => {
+    expect(() => new RunpodServerlessProvider({ endpointId: "https://attacker.test", apiKey: "key" })).toThrow("endpointId");
+    expect(() => new RunpodServerlessProvider({ endpointId: "valid-endpoint", apiKey: " " })).toThrow("API key is required");
   });
 });
