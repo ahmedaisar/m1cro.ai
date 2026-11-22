@@ -20,10 +20,19 @@ const defaults: Record<ProviderKind, { baseUrl: string; model: string }> = {
 };
 function providerFromEnvironment(): RuntimeProviderConfig {
   const kind = (process.env.M1CRO_PROVIDER ?? "openai-compatible") as ProviderKind;
-  if (!(kind in defaults)) throw new Error("M1CRO_PROVIDER must be openai-compatible, anthropic or ollama");
+  if (!(kind in defaults)) throw new Error("M1CRO_PROVIDER must be openai-compatible, anthropic, ollama or runpod");
   const config = defaults[kind];
+  if (kind === "runpod") {
+    const endpointId = process.env.M1CRO_RUNPOD_ENDPOINT_ID ?? process.env.RUNPOD_ENDPOINT_ID;
+    const apiKey = process.env.RUNPOD_API_KEY;
+    const model = process.env.M1CRO_MODEL ?? process.env.RUNPOD_MODEL_ID;
+    if (!endpointId || !/^[A-Za-z0-9_-]{1,128}$/.test(endpointId)) throw new Error("Set M1CRO_RUNPOD_ENDPOINT_ID to a valid Runpod Serverless endpoint ID");
+    if (!apiKey) throw new Error("Set RUNPOD_API_KEY for the Runpod provider");
+    if (!model) throw new Error("Set RUNPOD_MODEL_ID or M1CRO_MODEL to the exact deployed model ID");
+    return { kind, model, baseUrl: "https://api.runpod.ai/v2/" + endpointId + "/openai/v1", apiKey };
+  }
   const baseUrl = process.env.M1CRO_BASE_URL ?? config.baseUrl;
-  if (!/^https?:\/\//i.test(baseUrl)) throw new Error("M1CRO_BASE_URL must use http or https");
+  if (!/^https?:\\/\\//i.test(baseUrl)) throw new Error("M1CRO_BASE_URL must use http or https");
   const apiKey = kind === "anthropic" ? process.env.ANTHROPIC_API_KEY : kind === "ollama" ? undefined : process.env.OPENAI_API_KEY;
   return { kind, model: process.env.M1CRO_MODEL ?? config.model, baseUrl, ...(apiKey ? { apiKey } : {}) };
 }
