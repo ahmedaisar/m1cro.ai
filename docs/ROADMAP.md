@@ -62,6 +62,7 @@ The source-provenance assessment is documented in `docs/research/license-provena
 ## Phase 4 — Hosted platform
 
 - [ ] Identity and hosted inference gateway.
+- [x] Add a Runpod Serverless OpenAI-compatible provider adapter with model discovery and streaming. See [Runpod Serverless integration](integrations/runpod-serverless.md).
 - [ ] Model catalog API and routing.
 - [ ] Metering, quotas and billing.
 - [ ] Usage dashboard.
