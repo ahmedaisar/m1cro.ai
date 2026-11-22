@@ -355,7 +355,7 @@ describe("RunpodServerlessProvider", () => {
       const body = JSON.parse(String(init?.body));
       expect(body.model).toBe("Qwen/Qwen3-32B-AWQ");
       expect(body.stream).toBe(true);
-      return sse(['data: {"choices":[{"delta":{"content":"hello"}}]}\\n\\n']);
+      return sse(['data: {"choices":[{"delta":{"content":"hello"}}]}\n\n']);
     });
     const provider = new RunpodServerlessProvider({ endpointId: "endpoint-abc", apiKey: "runpod-secret", fetcher });
     const events = [];
