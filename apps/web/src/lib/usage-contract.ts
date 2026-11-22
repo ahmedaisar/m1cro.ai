@@ -54,7 +54,7 @@ export function buildInferenceUsageRows(input: InferenceUsageInput): UsageRecord
 
   return metrics.map(({ metric, quantity }) => ({
     id: createHash("sha256")
-      .update([input.ownerId, input.requestId, metric].join("\\0"))
+      .update(JSON.stringify([input.ownerId, input.requestId, metric]))
       .digest("hex"),
     ownerId: input.ownerId,
     organizationId: input.organizationId ?? null,
