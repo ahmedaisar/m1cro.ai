@@ -70,6 +70,8 @@ importers:
         specifier: workspace:*
         version: link:../tools
 
+  packages/models: {}
+
   packages/policy: {}
 
   packages/protocol: {}
@@ -80,7 +82,36 @@ importers:
         specifier: workspace:*
         version: link:../protocol
 
-  packages/models: {}
+  packages/runtime-host:
+    dependencies:
+      '@m1cro/core':
+        specifier: workspace:*
+        version: link:../core
+      '@m1cro/policy':
+        specifier: workspace:*
+        version: link:../policy
+      '@m1cro/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@m1cro/providers':
+        specifier: workspace:*
+        version: link:../providers
+      '@m1cro/sessions':
+        specifier: workspace:*
+        version: link:../sessions
+      '@m1cro/tools':
+        specifier: workspace:*
+        version: link:../tools
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.20.5
+      tsx:
+        specifier: ^4.19.2
+        version: 4.23.15
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.5)
 
   packages/sessions: {}
 
