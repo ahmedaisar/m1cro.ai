@@ -64,7 +64,8 @@ The source-provenance assessment is documented in `docs/research/license-provena
 - [ ] Identity and hosted inference gateway.
 - [x] Add a Runpod Serverless OpenAI-compatible provider adapter with model discovery and streaming. See [Runpod Serverless integration](integrations/runpod-serverless.md).
 - [ ] Model catalog API and routing.
-- [ ] Metering, quotas and billing.
+- [x] Add an idempotent inference usage ledger writer and authenticated monthly usage summary API. See [usage metering](architecture/usage-metering.md).
+- [ ] Wire authoritative provider token usage into the ledger; approve credit conversion, quotas and billing separately.
 - [ ] Usage dashboard.
 
 ## Phase 5 — Cloud and teams
