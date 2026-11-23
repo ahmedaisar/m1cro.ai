@@ -192,7 +192,7 @@ export class RuntimeHost {
           const project = await this.options.projectStore?.get(session.projectId);
           if (this.options.projectStore && (!project || project.ownerId !== session.ownerId)) throw new Error("Workspace unavailable");
           const agent = this.options.createAgent(approval, this.options.sessionStore, project?.workspacePath);
-          for await (const event of agent.run({ sessionId: session.id, prompt: body.prompt, signal: controller.signal })) {
+          for await (const event of agent.run({ sessionId: session.id, prompt: body.prompt, requestId: body.requestId, signal: controller.signal })) {
             turnId ||= event.turnId;
             const previousStatus = session.status;
             const previousTurnId = session.activeTurnId;
@@ -203,7 +203,7 @@ export class RuntimeHost {
               session.updatedAt = new Date().toISOString();
               await this.options.registryStore?.save(session);
             }
-            await this.publish(session.id, event);
+            await this.publish(session.id, event.type === "usage.report" ? { ...event, projectId: session.projectId } : event);
           }
         } catch (error) {
           session.status = controller.signal.aborted ? "cancelled" : "failed";
