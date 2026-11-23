@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { AgentRuntime } from "@m1cro/core";
 import { DefaultPolicy } from "@m1cro/policy";
-import { AnthropicProvider, OllamaProvider, OpenAICompatibleProvider, ProviderHttpError, type ModelProvider } from "@m1cro/providers";
+import { AnthropicProvider, OllamaProvider, OpenAICompatibleProvider, ProviderHttpError, RunpodServerlessProvider, type ModelProvider } from "@m1cro/providers";
 import { JsonlSessionStore } from "@m1cro/sessions";
 import { registerFilesystemTools, ToolRegistry, Workspace } from "@m1cro/tools";
 import { createLocalRuntimeHost } from "./index.js";
@@ -11,22 +11,37 @@ import { JsonlRuntimeSessionRegistry } from "./registry.js";
 import { JsonlRuntimeProjectRegistry } from "./projects.js";
 import { EncryptedProviderConfigStore, validateProviderConfig, type RuntimeProviderConfig } from "./provider-config.js";
 
-type ProviderKind = "openai-compatible" | "anthropic" | "ollama";
+type ProviderKind = "openai-compatible" | "anthropic" | "ollama" | "runpod";
 const defaults: Record<ProviderKind, { baseUrl: string; model: string }> = {
   "openai-compatible": { baseUrl: "https://api.openai.com/v1", model: "gpt-4o-mini" },
   anthropic: { baseUrl: "https://api.anthropic.com", model: "claude-3-5-haiku-latest" },
   ollama: { baseUrl: "http://127.0.0.1:11434", model: "llama3.2" },
+  runpod: { baseUrl: "", model: "" },
 };
 function providerFromEnvironment(): RuntimeProviderConfig {
   const kind = (process.env.M1CRO_PROVIDER ?? "openai-compatible") as ProviderKind;
-  if (!(kind in defaults)) throw new Error("M1CRO_PROVIDER must be openai-compatible, anthropic or ollama");
+  if (!(kind in defaults)) throw new Error("M1CRO_PROVIDER must be openai-compatible, anthropic, ollama or runpod");
   const config = defaults[kind];
+  if (kind === "runpod") {
+    const endpointId = process.env.M1CRO_RUNPOD_ENDPOINT_ID ?? process.env.RUNPOD_ENDPOINT_ID;
+    const apiKey = process.env.RUNPOD_API_KEY;
+    const model = process.env.M1CRO_MODEL ?? process.env.RUNPOD_MODEL_ID;
+    if (!endpointId || !/^[A-Za-z0-9_-]{1,128}$/.test(endpointId)) throw new Error("Set M1CRO_RUNPOD_ENDPOINT_ID to a valid Runpod Serverless endpoint ID");
+    if (!apiKey) throw new Error("Set RUNPOD_API_KEY for the Runpod provider");
+    if (!model) throw new Error("Set RUNPOD_MODEL_ID or M1CRO_MODEL to the exact deployed model ID");
+    return { kind, model, baseUrl: "https://api.runpod.ai/v2/" + endpointId + "/openai/v1", apiKey };
+  }
   const baseUrl = process.env.M1CRO_BASE_URL ?? config.baseUrl;
   if (!/^https?:\/\//i.test(baseUrl)) throw new Error("M1CRO_BASE_URL must use http or https");
   const apiKey = kind === "anthropic" ? process.env.ANTHROPIC_API_KEY : kind === "ollama" ? undefined : process.env.OPENAI_API_KEY;
   return { kind, model: process.env.M1CRO_MODEL ?? config.model, baseUrl, ...(apiKey ? { apiKey } : {}) };
 }
 function createProvider(config: RuntimeProviderConfig): ModelProvider {
+  if (config.kind === "runpod") {
+    const endpointId = new URL(config.baseUrl).pathname.match(/^\/v2\/([A-Za-z0-9_-]{1,128})\/openai\/v1$/)?.[1];
+    if (!endpointId || !config.apiKey) throw new Error("Runpod provider configuration is incomplete");
+    return new RunpodServerlessProvider({ endpointId, apiKey: config.apiKey });
+  }
   return config.kind === "anthropic"
     ? new AnthropicProvider({ baseUrl: config.baseUrl, ...(config.apiKey ? { apiKey: config.apiKey } : {}) })
     : config.kind === "ollama"

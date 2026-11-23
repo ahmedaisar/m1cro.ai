@@ -1,6 +1,6 @@
 # Runpod Serverless inference adapter
 
-**Status:** Provider adapter and model discovery implemented. Platform-managed gateway routing, credentials, metering and quotas remain future work.
+**Status:** Provider adapter, model discovery, runtime provider selection and encrypted workspace configuration implemented. Platform-managed gateway routing, metering and quotas remain future work.
 
 ## Endpoint contract
 
@@ -17,6 +17,19 @@ The provider uses:
 - `Authorization: Bearer <RUNPOD_API_KEY>` for server-side authentication.
 
 The adapter is built on the existing `OpenAICompatibleProvider`, so request serialization, SSE parsing, retry policy, tool-call assembly and model-ID preservation stay shared with other OpenAI-compatible providers.
+
+## Workspace configuration
+
+The workspace provider settings now include **Runpod Serverless**. Enter the exact deployed model ID, the endpoint URL in the format above, and your Runpod API key. The runtime validates that the URL uses the official `api.runpod.ai` host and expected endpoint path. Provider credentials are encrypted at rest by the existing AES-256-GCM provider configuration store; status responses never return the key.
+
+For a server-managed default provider, configure the runtime environment:
+
+- `M1CRO_PROVIDER=runpod`
+- `M1CRO_RUNPOD_ENDPOINT_ID=<endpoint-id>`
+- `RUNPOD_API_KEY=<server-side-secret>`
+- `RUNPOD_MODEL_ID=<exact-deployed-model-id>` (or `M1CRO_MODEL`)
+
+Keep the API key server-side. Do not add it to `NEXT_PUBLIC_*` variables or client code.
 
 ## Usage
 
