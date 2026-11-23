@@ -13,7 +13,6 @@ interface UsageReport {
   model: string;
   inputTokens: number;
   outputTokens: number;
-  projectId?: string;
 }
 
 function meterRuntimeEvents(body: ReadableStream<Uint8Array>, ownerId: string): ReadableStream<Uint8Array> {
@@ -40,7 +39,6 @@ function meterRuntimeEvents(body: ReadableStream<Uint8Array>, ownerId: string): 
       await recordInferenceUsage({
         ownerId, requestId: event.requestId, provider: event.provider, model: event.model,
         inputTokens: event.inputTokens, outputTokens: event.outputTokens,
-        ...(event.projectId ? { projectId: event.projectId } : {}),
       });
     } catch {
       controller.enqueue(encoder.encode(frame));
