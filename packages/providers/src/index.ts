@@ -76,6 +76,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
     maxRetries?: number;
     retryBaseDelayMs?: number;
     maxRetryDelayMs?: number;
+    includeUsage?: boolean;
   }) {}
 
   /** Discover models from an OpenAI-compatible /models endpoint. Unknown capabilities stay unknown. */
@@ -139,7 +140,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
           body: JSON.stringify({
             model: request.model,
             stream: true,
-            stream_options: { include_usage: true },
+            ...(this.options.includeUsage ? { stream_options: { include_usage: true } } : {}),
             messages: toOpenAIMessages(request.messages),
             tools: request.tools.map((tool) => ({
               type: "function",
@@ -304,6 +305,7 @@ export class RunpodServerlessProvider extends OpenAICompatibleProvider {
       baseUrl: "https://api.runpod.ai/v2/" + endpointId + "/openai/v1",
       providerId: "runpod",
       apiKey: options.apiKey,
+      includeUsage: true,
       ...(options.fetcher ? { fetcher: options.fetcher } : {}),
       ...(options.maxRetries !== undefined ? { maxRetries: options.maxRetries } : {}),
       ...(options.retryBaseDelayMs !== undefined ? { retryBaseDelayMs: options.retryBaseDelayMs } : {}),
