@@ -203,7 +203,7 @@ export class RuntimeHost {
               session.updatedAt = new Date().toISOString();
               await this.options.registryStore?.save(session);
             }
-            await this.publish(session.id, event.type === "usage.report" ? { ...event, projectId: session.projectId } : event);
+            await this.publish(session.id, event);
           }
         } catch (error) {
           session.status = controller.signal.aborted ? "cancelled" : "failed";
