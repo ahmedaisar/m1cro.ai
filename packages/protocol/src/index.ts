@@ -5,7 +5,8 @@ export interface ToolResultEvent {type:"tool.result";turnId:string;callId:string
 export interface TurnStatusEvent {type:"turn.status";turnId:string;status:TurnStatus;reason?:string}
 export interface ApprovalRequiredEvent {type:"approval.required";turnId:string;callId:string;toolName:string;input:unknown;risk:"read"|"write"|"destructive"|"network"|"execute"}
 export interface ApprovalResolvedEvent {type:"approval.resolved";turnId:string;callId:string;decision:"approved"|"rejected";actor:"user";reason?:string}
-export interface UsageReportEvent {type:"usage.report";turnId:string;requestId:string;provider:string;model:string;inputTokens:number;outputTokens:number}\nexport type RuntimeEvent=TextDeltaEvent|ToolCallEvent|ToolResultEvent|TurnStatusEvent|ApprovalRequiredEvent|ApprovalResolvedEvent|UsageReportEvent;
+export interface UsageReportEvent {type:"usage.report";turnId:string;requestId:string;provider:string;model:string;inputTokens:number;outputTokens:number}
+export type RuntimeEvent=TextDeltaEvent|ToolCallEvent|ToolResultEvent|TurnStatusEvent|ApprovalRequiredEvent|ApprovalResolvedEvent|UsageReportEvent;
 export interface ToolCall {id:string;name:string;input:unknown}
 export type ModelEvent={type:"text";text:string}|{type:"tool_call";call:ToolCall}|{type:"usage";inputTokens:number;outputTokens:number}|{type:"done";stopReason?:string};
 export interface ModelMessage {role:"system"|"user"|"assistant"|"tool";content:string;toolCallId?:string;name?:string;toolCalls?:ToolCall[]}
