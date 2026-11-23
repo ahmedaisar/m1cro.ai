@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { RuntimeEventSequencer, isRuntimeEventEnvelope, RUNTIME_PROTOCOL_NAME, RUNTIME_PROTOCOL_VERSION } from "./index.js";
+import { createSessionDeepLink, readSessionDeepLink, RuntimeEventSequencer, isRuntimeEventEnvelope, RUNTIME_PROTOCOL_NAME, RUNTIME_PROTOCOL_VERSION } from "./index.js";
 
 describe("versioned runtime client protocol", () => {
   it("wraps events in a versioned session envelope", () => {
@@ -29,5 +29,28 @@ describe("versioned runtime client protocol", () => {
     expect(isRuntimeEventEnvelope({ protocol: RUNTIME_PROTOCOL_NAME, version: 1, sessionId: "", sequence: 1, event: { type: "text.delta" } })).toBe(false);
     expect(isRuntimeEventEnvelope({ protocol: RUNTIME_PROTOCOL_NAME, version: 1, sessionId: "s", sequence: 0, event: { type: "text.delta" } })).toBe(false);
     expect(isRuntimeEventEnvelope(null)).toBe(false);
+  });
+});
+
+
+describe("cross-client session deep links", () => {
+  it("creates a URL with a stable session query parameter and preserves other query values", () => {
+    expect(createSessionDeepLink("https://app.m1cro.ai/?source=editor", "session-123"))
+      .toBe("https://app.m1cro.ai/?source=editor&session=session-123");
+  });
+
+  it("encodes session identifiers and reads them back", () => {
+    const link = createSessionDeepLink("https://app.m1cro.ai", "session/with spaces");
+    expect(readSessionDeepLink(link)).toBe("session/with spaces");
+  });
+
+  it("returns null for missing or invalid session links", () => {
+    expect(readSessionDeepLink("https://app.m1cro.ai")).toBeNull();
+    expect(readSessionDeepLink("not a url")).toBeNull();
+    expect(readSessionDeepLink("https://app.m1cro.ai/?session=%20%20")).toBeNull();
+  });
+
+  it("rejects empty session identifiers when creating links", () => {
+    expect(() => createSessionDeepLink("https://app.m1cro.ai", "  ")).toThrow("sessionId must not be empty");
   });
 });

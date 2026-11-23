@@ -48,3 +48,25 @@ export function isRuntimeEventEnvelope(value: unknown): value is RuntimeEventEnv
     && !!candidate.event && typeof candidate.event === "object"
     && ["text.delta", "tool.call", "tool.result", "turn.status", "approval.required", "approval.resolved"].includes(String((candidate.event as { type?: unknown }).type));
 }
+
+
+/** Stable query parameter used to deep-link browser, desktop and editor clients to a session. */
+export const RUNTIME_SESSION_QUERY_PARAM = "session" as const;
+
+/** Builds a browser URL that opens an existing session without embedding credentials. */
+export function createSessionDeepLink(baseUrl: string, sessionId: string): string {
+  if (!sessionId.trim()) throw new Error("sessionId must not be empty");
+  const url = new URL(baseUrl);
+  url.searchParams.set(RUNTIME_SESSION_QUERY_PARAM, sessionId);
+  return url.toString();
+}
+
+/** Reads a session deep link. Returns null for invalid URLs or missing/blank session IDs. */
+export function readSessionDeepLink(value: string): string | null {
+  try {
+    const sessionId = new URL(value).searchParams.get(RUNTIME_SESSION_QUERY_PARAM)?.trim();
+    return sessionId || null;
+  } catch {
+    return null;
+  }
+}
