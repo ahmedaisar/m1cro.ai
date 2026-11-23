@@ -64,7 +64,7 @@ function toOpenAIMessages(messages: ModelMessage[]): OpenAIMessage[] {
 }
 
 export class OpenAICompatibleProvider implements ModelProvider {
-  readonly id = "openai-compatible";
+  readonly id: string = "openai-compatible";
 
   constructor(private readonly options: {
     baseUrl: string;
@@ -264,6 +264,44 @@ export class OpenAICompatibleProvider implements ModelProvider {
       if (!finished) await reader.cancel(request.signal.reason).catch(() => undefined);
       reader.releaseLock();
     }
+  }
+}
+
+
+export interface RunpodServerlessProviderOptions {
+  /** Runpod Serverless endpoint ID, not a full URL. */
+  endpointId: string;
+  apiKey: string;
+  fetcher?: typeof fetch;
+  maxRetries?: number;
+  retryBaseDelayMs?: number;
+  maxRetryDelayMs?: number;
+}
+
+/**
+ * Runpod Serverless vLLM adapter.
+ * Uses Runpod's documented OpenAI-compatible endpoint; streaming and model discovery
+ * are inherited from the shared OpenAI-compatible transport.
+ */
+export class RunpodServerlessProvider extends OpenAICompatibleProvider {
+  readonly id: string = "runpod";
+
+  constructor(options: RunpodServerlessProviderOptions) {
+    const endpointId = options.endpointId.trim();
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(endpointId)) {
+      throw new Error("Runpod endpointId must contain only letters, numbers, hyphens or underscores");
+    }
+    if (!options.apiKey.trim()) throw new Error("Runpod API key is required");
+
+    super({
+      baseUrl: "https://api.runpod.ai/v2/" + endpointId + "/openai/v1",
+      providerId: "runpod",
+      apiKey: options.apiKey,
+      ...(options.fetcher ? { fetcher: options.fetcher } : {}),
+      ...(options.maxRetries !== undefined ? { maxRetries: options.maxRetries } : {}),
+      ...(options.retryBaseDelayMs !== undefined ? { retryBaseDelayMs: options.retryBaseDelayMs } : {}),
+      ...(options.maxRetryDelayMs !== undefined ? { maxRetryDelayMs: options.maxRetryDelayMs } : {}),
+    });
   }
 }
 
