@@ -33,7 +33,7 @@ export function selectModelForCapabilities(provider: string, options: ModelSelec
  return { model: compatible[0]!.model, alternatives: compatible.slice(1).map(({ model }) => model) };
 }
 export interface AgentOptions {provider:ModelProvider;tools:ToolRegistry;policy:Policy;model:string;modelSelection?:ModelSelectionOptions;maxToolRounds?:number;systemPrompt?:string;approval?:ApprovalController;sessionStore?:SessionStore}
-export interface RunInput {sessionId:string;prompt:string;signal?:AbortSignal}
+export interface RunInput {sessionId:string;prompt:string;requestId?:string;signal?:AbortSignal}
 export class AgentRuntime {
  constructor(private readonly options:AgentOptions){}
  async *run(input:RunInput):AsyncIterable<RuntimeEvent>{
@@ -74,6 +74,9 @@ export class AgentRuntime {
       await record("event",{type:"text.delta",turnId,delta:event.text});yield {type:"text.delta",turnId,delta:event.text};
      }else if(event.type==="tool_call"){
       calls.push(event.call);await record("event",{type:"tool.call",turnId,call:event.call});yield {type:"tool.call",turnId,callId:event.call.id,toolName:event.call.name,input:event.call.input};
+     }else if(event.type==="usage"){
+      const usage:RuntimeEvent={type:"usage.report",turnId,requestId:`${input.requestId??turnId}_${round}`,provider:this.options.provider.id,model:selectedModel,inputTokens:event.inputTokens,outputTokens:event.outputTokens};
+      await record("event",usage);yield usage;
      }
     }
     if(round===maxRounds&&calls.length>0)throw new Error("Agent reached maximum tool-round limit");

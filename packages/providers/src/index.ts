@@ -18,6 +18,7 @@ type OpenAIMessage = {
 };
 type PendingTool = { id: string; name: string; arguments: string };
 type ChatChunk = {
+  usage?: { prompt_tokens?: number; completion_tokens?: number };
   choices?: Array<{
     delta?: {
       content?: string | null;
@@ -75,6 +76,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
     maxRetries?: number;
     retryBaseDelayMs?: number;
     maxRetryDelayMs?: number;
+    includeUsage?: boolean;
   }) {}
 
   /** Discover models from an OpenAI-compatible /models endpoint. Unknown capabilities stay unknown. */
@@ -138,6 +140,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
           body: JSON.stringify({
             model: request.model,
             stream: true,
+            ...(this.options.includeUsage ? { stream_options: { include_usage: true } } : {}),
             messages: toOpenAIMessages(request.messages),
             tools: request.tools.map((tool) => ({
               type: "function",
@@ -213,6 +216,11 @@ export class OpenAICompatibleProvider implements ModelProvider {
         throw new Error("Provider emitted malformed SSE JSON");
       }
       if (chunk.error?.message) throw new Error("Provider stream error: " + chunk.error.message);
+      const inputTokens = chunk.usage?.prompt_tokens;
+      const outputTokens = chunk.usage?.completion_tokens;
+      if (Number.isSafeInteger(inputTokens) && inputTokens! >= 0 && Number.isSafeInteger(outputTokens) && outputTokens! >= 0) {
+        yield { type: "usage", inputTokens: inputTokens!, outputTokens: outputTokens! };
+      }
 
       const choice = chunk.choices?.[0];
       const delta = choice?.delta;
@@ -297,6 +305,7 @@ export class RunpodServerlessProvider extends OpenAICompatibleProvider {
       baseUrl: "https://api.runpod.ai/v2/" + endpointId + "/openai/v1",
       providerId: "runpod",
       apiKey: options.apiKey,
+      includeUsage: true,
       ...(options.fetcher ? { fetcher: options.fetcher } : {}),
       ...(options.maxRetries !== undefined ? { maxRetries: options.maxRetries } : {}),
       ...(options.retryBaseDelayMs !== undefined ? { retryBaseDelayMs: options.retryBaseDelayMs } : {}),

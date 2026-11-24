@@ -120,6 +120,28 @@ describe("AgentRuntime",()=>{
     ]);
   });
 
+  it("forwards authoritative usage with a stable per-round request ID", async () => {
+    const provider: ModelProvider = {
+      id: "runpod",
+      async *stream() {
+        yield { type: "usage", inputTokens: 120, outputTokens: 45 } as const;
+        yield { type: "done" } as const;
+      },
+    };
+    const runtime = new AgentRuntime({ provider, tools: new ToolRegistry(), policy: new DefaultPolicy(), model: "Qwen/test" });
+    const events = [];
+    for await (const event of runtime.run({ sessionId: "usage-session", prompt: "hello", requestId: "request_123" })) events.push(event);
+    expect(events).toContainEqual({
+      type: "usage.report",
+      turnId: expect.any(String),
+      requestId: "request_123_0",
+      provider: "runpod",
+      model: "Qwen/test",
+      inputTokens: 120,
+      outputTokens: 45,
+    });
+  });
+
 });
 
 

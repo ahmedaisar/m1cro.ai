@@ -355,12 +355,17 @@ describe("RunpodServerlessProvider", () => {
       const body = JSON.parse(String(init?.body));
       expect(body.model).toBe("Qwen/Qwen3-32B-AWQ");
       expect(body.stream).toBe(true);
-      return sse(['data: {"choices":[{"delta":{"content":"hello"}}]}\n\n']);
+      expect(body.stream_options).toEqual({ include_usage: true });
+      return sse([
+        'data: {"choices":[{"delta":{"content":"hello"}}]}\n\n',
+        'data: {"choices":[],"usage":{"prompt_tokens":23,"completion_tokens":11,"total_tokens":34}}\n\n',
+      ]);
     });
     const provider = new RunpodServerlessProvider({ endpointId: "endpoint-abc", apiKey: "runpod-secret", fetcher });
     const events = [];
     for await (const event of provider.stream({ ...request(), model: "Qwen/Qwen3-32B-AWQ" })) events.push(event);
     expect(events).toContainEqual({ type: "text", text: "hello" });
+    expect(events).toContainEqual({ type: "usage", inputTokens: 23, outputTokens: 11 });
     expect(events.at(-1)).toEqual({ type: "done" });
   });
 

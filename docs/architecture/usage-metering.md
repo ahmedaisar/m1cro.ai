@@ -1,6 +1,6 @@
 # Usage metering foundation
 
-**Status:** Append-only inference usage records and an authenticated monthly summary endpoint implemented. Credit conversion, quotas and billing are intentionally not enabled yet.
+**Status:** Append-only inference usage records, authenticated monthly summary and runtime-stream capture are implemented for the Runpod OpenAI-compatible adapter. Credit conversion, quotas and billing are intentionally not enabled yet.
 
 ## Ledger contract
 
@@ -39,15 +39,17 @@ Responses are private and use `Cache-Control: no-store`. The endpoint does not a
 ## Important release boundary
 
 - The ledger writer is a server-side primitive for the hosted inference gateway; no client can write usage directly.
-- No request path currently calls the ledger writer until the gateway is wired to provider usage events.
+- The authenticated web BFF consumes internal `usage.report` frames from the runtime event stream and records them for the signed-in owner. Usage frames are removed from the public stream after a successful write; failed writes are passed through for diagnosis and do not interrupt generation.
+- Runpod streaming requests ask for `stream_options.include_usage`; only provider-reported `prompt_tokens` and `completion_tokens` are recorded. If a provider omits authoritative usage, no token count is guessed.
+- Usage events carry a stable per-turn/per-tool-round request ID. Replayed SSE events and retried writes are safe because the ledger primary key is deterministic.
 - No credits are calculated. Token-to-credit conversion must be approved as a product/pricing decision.
 - No quota is enforced, and no subscription or Stripe state is inferred.
 - The seven existing Drizzle migrations, including creation of `usage_records`, must be applied and verified before this endpoint can work against the shared Neon database.
 
 ## Next steps
 
-1. Emit authoritative input/output usage from provider adapters, including the Runpod adapter.
-2. Record usage only after a provider response has authoritative usage metadata; define reconciliation for interrupted/failed streams.
+1. Add authoritative usage extraction for Anthropic and Ollama adapters where their provider responses expose reliable counts.
+2. Add reconciliation/alerting for ledger write failures and interrupted streams before enabling paid usage.
 3. Approve credit conversion and plan limits.
 4. Add transactional credit reservations and quota enforcement before starting paid inference.
 5. Integrate Stripe subscription lifecycle and a usage dashboard.

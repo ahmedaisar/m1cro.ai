@@ -1,9 +1,68 @@
 import { isSameOriginRequest, requestSessionIdentity, signRuntimePrincipal } from "@/lib/auth";
 import { ensureRuntime } from "@/lib/runtime-manager";
+import { recordInferenceUsage } from "@/lib/usage";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 type RouteContext = { params: Promise<{ path: string[] }> };
+
+interface UsageReport {
+  type: "usage.report";
+  requestId: string;
+  provider: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+}
+
+function meterRuntimeEvents(body: ReadableStream<Uint8Array>, ownerId: string): ReadableStream<Uint8Array> {
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+  let buffer = "";
+  async function emit(frame: string, controller: TransformStreamDefaultController<Uint8Array>) {
+    const data = frame.split(/\r?\n/).find(line => line.startsWith("data:"))?.slice(5).trim();
+    if (!data) { controller.enqueue(encoder.encode(frame)); return; }
+    let event: UsageReport | undefined;
+    try {
+      const envelope = JSON.parse(data) as { event?: UsageReport };
+      if (envelope.event?.type === "usage.report") event = envelope.event;
+    } catch {}
+    if (!event || typeof event.requestId !== "string" || !event.requestId.trim()
+      || typeof event.provider !== "string" || !event.provider.trim()
+      || typeof event.model !== "string" || !event.model.trim()
+      || !Number.isSafeInteger(event.inputTokens) || event.inputTokens < 0
+      || !Number.isSafeInteger(event.outputTokens) || event.outputTokens < 0) {
+      controller.enqueue(encoder.encode(frame));
+      return;
+    }
+    try {
+      await recordInferenceUsage({
+        ownerId, requestId: event.requestId, provider: event.provider, model: event.model,
+        inputTokens: event.inputTokens, outputTokens: event.outputTokens,
+      });
+    } catch {
+      controller.enqueue(encoder.encode(frame));
+    }
+  }
+  return body.pipeThrough(new TransformStream({
+    async transform(chunk, controller) {
+      buffer += decoder.decode(chunk, { stream: true });
+      while (true) {
+        const boundary = /\r?\n\r?\n/.exec(buffer);
+        if (!boundary || boundary.index === undefined) break;
+        const end = boundary.index + boundary[0].length;
+        const frame = buffer.slice(0, end);
+        buffer = buffer.slice(end);
+        await emit(frame, controller);
+      }
+    },
+    async flush(controller) {
+      buffer += decoder.decode();
+      if (buffer) await emit(buffer, controller);
+    },
+  }));
+}
+
 
 function validPath(parts: string[]): boolean {
   if (parts.length === 2 && parts[0] === "v1" && (parts[1] === "sessions" || parts[1] === "projects")) return true;
@@ -63,7 +122,10 @@ async function proxy(request: Request, context: RouteContext): Promise<Response>
     if (contentType) responseHeaders.set("content-type", contentType);
     responseHeaders.set("cache-control", path[path.length - 1] === "events" ? "no-cache, no-transform" : "no-store");
     responseHeaders.set("x-content-type-options", "nosniff");
-    return new Response(upstream.body, { status: upstream.status, headers: responseHeaders });
+    const responseBody = upstream.body && method === "GET" && path[path.length - 1] === "events"
+      ? meterRuntimeEvents(upstream.body, identity.id)
+      : upstream.body;
+    return new Response(responseBody, { status: upstream.status, headers: responseHeaders });
   } catch {
     return Response.json({ error: "Runtime service unavailable" }, { status: 502 });
   }
