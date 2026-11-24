@@ -214,7 +214,9 @@ describe("AnthropicProvider", () => {
   it("sends system prompt, tools and auth headers and streams text", async () => {
     const encoder = new TextEncoder();
     const events = [
+      { type: "message_start", message: { usage: { input_tokens: 31, output_tokens: 0 } } },
       { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "hello" } },
+      { type: "message_delta", usage: { output_tokens: 12 } },
       { type: "message_stop" },
     ];
     const body = new ReadableStream<Uint8Array>({
@@ -238,7 +240,11 @@ describe("AnthropicProvider", () => {
     for await (const event of provider.stream({
       ...request(), messages: [{ role: "system", content: "system prompt" }, { role: "user", content: "hi" }],
     })) output.push(event);
-    expect(output).toEqual([{ type: "text", text: "hello" }, { type: "done", stopReason: "end_turn" }]);
+    expect(output).toEqual([
+      { type: "text", text: "hello" },
+      { type: "usage", inputTokens: 31, outputTokens: 12 },
+      { type: "done", stopReason: "end_turn" },
+    ]);
   });
 
   it("assembles streamed tool input JSON", async () => {
@@ -276,7 +282,7 @@ describe("OllamaProvider", () => {
     const encoder = new TextEncoder();
     const chunks = [
       { message: { content: "hello " }, done: false },
-      { message: { content: "world", tool_calls: [{ function: { name: "read_file", arguments: { path: "a.txt" } } }] }, done: true },
+      { message: { content: "world", tool_calls: [{ function: { name: "read_file", arguments: { path: "a.txt" } } }] }, done: true, prompt_eval_count: 24, eval_count: 9 },
     ];
     const body = new ReadableStream<Uint8Array>({
       start(controller) {
@@ -297,6 +303,7 @@ describe("OllamaProvider", () => {
       { type: "text", text: "hello " },
       { type: "text", text: "world" },
       { type: "tool_call", call: { id: "ollama_0", name: "read_file", input: { path: "a.txt" } } },
+      { type: "usage", inputTokens: 24, outputTokens: 9 },
       { type: "done", stopReason: "stop" },
     ]);
   });

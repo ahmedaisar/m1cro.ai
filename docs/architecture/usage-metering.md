@@ -1,6 +1,6 @@
 # Usage metering foundation
 
-**Status:** Append-only inference usage records, authenticated monthly summary and runtime-stream capture are implemented for the Runpod OpenAI-compatible adapter. Credit conversion, quotas and billing are intentionally not enabled yet.
+**Status:** Append-only inference usage records, authenticated monthly summary and runtime-stream capture are implemented for Runpod, Anthropic and Ollama adapters. Credit conversion, quotas and billing are intentionally not enabled yet.
 
 ## Ledger contract
 
@@ -40,7 +40,7 @@ Responses are private and use `Cache-Control: no-store`. The endpoint does not a
 
 - The ledger writer is a server-side primitive for the hosted inference gateway; no client can write usage directly.
 - The authenticated web BFF consumes internal `usage.report` frames from the runtime event stream and records them for the signed-in owner. Usage frames are removed from the public stream after a successful write; failed writes are passed through for diagnosis and do not interrupt generation.
-- Runpod streaming requests ask for `stream_options.include_usage`; only provider-reported `prompt_tokens` and `completion_tokens` are recorded. If a provider omits authoritative usage, no token count is guessed.
+- Runpod streaming requests ask for `stream_options.include_usage`; Anthropic uses the `message_start`/`message_delta` usage fields; Ollama uses `prompt_eval_count`/`eval_count` from its terminal NDJSON chunk. Only provider-reported counts are recorded. If a provider omits authoritative usage, no token count is guessed.
 - Usage events carry a stable per-turn/per-tool-round request ID. Replayed SSE events and retried writes are safe because the ledger primary key is deterministic.
 - No credits are calculated. Token-to-credit conversion must be approved as a product/pricing decision.
 - No quota is enforced, and no subscription or Stripe state is inferred.

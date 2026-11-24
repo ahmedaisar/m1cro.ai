@@ -427,8 +427,11 @@ export class AnthropicProvider implements ModelProvider {
     const decoder = new TextDecoder();
     let buffer = "";
     const tools = new Map<number, { id: string; name: string; json: string }>();
+    let inputTokens: number | undefined;
+    let outputTokens: number | undefined;
     const handle = (event: Record<string, any>): ModelEvent[] => {
       if (event.type === "error") throw new Error("Anthropic stream error: " + (event.error?.message ?? "unknown error"));
+      if (event.type === "message_start") inputTokens = event.message?.usage?.input_tokens;
       if (event.type === "content_block_start" && event.content_block?.type === "tool_use") {
         tools.set(event.index ?? 0, { id: event.content_block.id ?? "", name: event.content_block.name ?? "", json: "" });
       }
@@ -447,6 +450,13 @@ export class AnthropicProvider implements ModelProvider {
           try { input = JSON.parse(tool.json || "{}"); } catch { throw new Error("Anthropic emitted malformed tool input JSON"); }
           output.push({ type: "tool_call", call: { id: tool.id, name: tool.name, input } });
           tools.delete(event.index ?? 0);
+        }
+      }
+      if (event.type === "message_delta") {
+        outputTokens = event.usage?.output_tokens;
+        if (Number.isSafeInteger(inputTokens) && inputTokens! >= 0
+          && Number.isSafeInteger(outputTokens) && outputTokens! >= 0) {
+          output.push({ type: "usage", inputTokens: inputTokens!, outputTokens: outputTokens! });
         }
       }
       if (event.type === "message_stop") output.push({ type: "done", stopReason: "end_turn" });
@@ -548,7 +558,15 @@ export class OllamaProvider implements ModelProvider {
             if (!call.function?.name) throw new Error("Ollama emitted a tool call without a function name");
             yield { type: "tool_call", call: { id: "ollama_" + toolIndex++, name: call.function.name, input: call.function.arguments ?? {} } };
           }
-          if (chunk.done) yield { type: "done", stopReason: "stop" };
+          if (chunk.done) {
+            const inputTokens = chunk.prompt_eval_count;
+            const outputTokens = chunk.eval_count;
+            if (Number.isSafeInteger(inputTokens) && inputTokens >= 0
+              && Number.isSafeInteger(outputTokens) && outputTokens >= 0) {
+              yield { type: "usage", inputTokens, outputTokens };
+            }
+            yield { type: "done", stopReason: "stop" };
+          }
         }
         if (done) break;
       }
@@ -556,7 +574,15 @@ export class OllamaProvider implements ModelProvider {
         const chunk = JSON.parse(buffer.trim());
         if (chunk.error) throw new Error("Ollama stream error: " + chunk.error);
         if (chunk.message?.content) yield { type: "text", text: chunk.message.content };
-        if (chunk.done) yield { type: "done", stopReason: "stop" };
+        if (chunk.done) {
+          const inputTokens = chunk.prompt_eval_count;
+          const outputTokens = chunk.eval_count;
+          if (Number.isSafeInteger(inputTokens) && inputTokens >= 0
+            && Number.isSafeInteger(outputTokens) && outputTokens >= 0) {
+            yield { type: "usage", inputTokens, outputTokens };
+          }
+          yield { type: "done", stopReason: "stop" };
+        }
       }
     } finally {
       await reader.cancel().catch(() => undefined);
